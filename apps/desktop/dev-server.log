@@ -1,0 +1,24 @@
+     Running BeforeDevCommand (`npm run dev`)
+
+> supercoder-desktop@0.1.0 dev
+> vite
+
+
+  [32m[1mVITE[22m v5.4.21[39m  [2mready in [0m[1m1819[22m[2m[0m ms[22m
+
+  [32mΓ₧£[39m  [1mLocal[22m:   [36mhttp://localhost:[1m1420[22m/[39m
+[2m  [32mΓ₧£[39m  [1mNetwork[22m[2m: use [22m[1m--host[22m[2m to expose[22m
+     Running DevCommand (`cargo  run --no-default-features --color always --`)
+        Info Watching D:\AI-Agents\SuperCoder-main\apps\desktop\src-tauri for changes...
+        Info Watching D:\AI-Agents\SuperCoder-main\crates\agent for changes...
+        Info Watching D:\AI-Agents\SuperCoder-main\crates\git-ops for changes...
+        Info Watching D:\AI-Agents\SuperCoder-main\crates\context-sync for changes...
+   Compiling agent v0.1.0 (D:\AI-Agents\SuperCoder-main\crates\agent)
+   Compiling supercoder-agent-desktop v0.1.0 (D:\AI-Agents\SuperCoder-main\apps\desktop\src-tauri)
+    Building [=======================> ] 536/540: supercoΓÇª
+    Building [=======================> ] 537/540: agent   
+    Building [=======================> ] 538/540: supercoΓÇª
+    Building [=======================> ] 539/540: supercoΓÇª
+                                                            
+    Finished `dev` profile [unoptimized] target(s) in 1m 23s
+     Running `D:\AI-Agents\SuperCoder-main\target\debug\supercoder-agent-desktop.exe`

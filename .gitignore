@@ -1,0 +1,45 @@
+# Rust
+target/
+
+# Node
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+vendor/
+go.work
+
+# Compiled context-engine binaries built at repo root
+/server
+/worker
+/migrations
+
+# Bazel
+bazel-*
+
+# IDE / editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*.swn
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+.envrc
+
+# Tauri generated
+apps/*/src-tauri/gen/
