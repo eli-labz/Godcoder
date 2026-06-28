@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Ask a Question / Start a Discussion
+    url: https://github.com/eli-labz/Godcoder/discussions
+    about: Use GitHub Discussions for questions, ideas, and general conversation about Godcoder.
+  - name: Documentation
+    url: https://github.com/eli-labz/Godcoder/blob/main/ARCHITECTURE.md
+    about: Read the architecture documentation for a deep-dive into how Godcoder works.
