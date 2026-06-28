@@ -944,7 +944,7 @@ fn build_agent_config(
     // autonomy directive lives in the dedicated system prompt (selected by
     // `build_system_prompt`); tool auto-approval is enforced separately when
     // building the approval handler.
-    if mode == ToolMode::Freestyle || mode == ToolMode::Harness {
+    if mode == ToolMode::Freestyle || mode == ToolMode::Harness || mode == ToolMode::Cowork {
         config.max_iterations = config.max_iterations.max(250);
     }
 
@@ -1265,6 +1265,7 @@ fn parse_mode(mode: &str) -> ToolMode {
         "coding" => ToolMode::Coding,
         "freestyle" => ToolMode::Freestyle,
         "harness" => ToolMode::Harness,
+        "cowork" => ToolMode::Cowork,
         _ => ToolMode::Ask,
     }
 }
@@ -1773,7 +1774,7 @@ async fn run_agent_turn(
     let mut perm_config = load_permission_config(app_state, Some(&folder));
     // Freestyle and Harness modes: auto-approve every tool call regardless of
     // the project's saved permission level.
-    if mode == ToolMode::Freestyle || mode == ToolMode::Harness {
+    if mode == ToolMode::Freestyle || mode == ToolMode::Harness || mode == ToolMode::Cowork {
         perm_config = crate::agent_bridge::permissions::PermissionConfig {
             project_path: None,
             level: crate::agent_bridge::permissions::PermissionLevel::AutoApproveAll,
@@ -1827,7 +1828,7 @@ async fn run_agent_turn(
     let user_msg = build_user_message(&message, attachments).await;
 
     let event_rx = match mode {
-        ToolMode::Coding | ToolMode::Freestyle | ToolMode::Harness => manager
+        ToolMode::Coding | ToolMode::Freestyle | ToolMode::Harness | ToolMode::Cowork => manager
             .start_coding_session(
                 session_id.clone(),
                 config,

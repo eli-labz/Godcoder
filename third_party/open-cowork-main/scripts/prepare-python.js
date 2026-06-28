@@ -1,0 +1,564 @@
+#!/usr/bin/env node
+
+/**
+ * Prepare a bundled Python runtime for Open Cowork (macOS/Linux).
+ *
+ * Goal:
+ * - Bundle a standalone python3 into `resources/python/darwin-{arch}/`
+ * - Preinstall required packages into `resources/python/darwin-{arch}/site-packages/`
+ *   - Pillow (PIL)
+ *   - pyobjc-framework-Quartz (import Quartz)
+ *
+ * Runtime code (gui-operate-server) will prefer the bundled Python and add
+ * `${pythonRoot}/site-packages` to PYTHONPATH.
+ *
+ * Why python-build-standalone instead of python.org?
+ * - python-build-standalone provides ready-to-use install_only.tar.gz files
+ *   (no need to extract from .pkg installers, no user interaction)
+ * - Smaller size (~50MB vs ~100MB+ for full python.org installer)
+ * - Standalone (no system dependencies, works in sandboxed Electron apps)
+ * - Supports both arm64 and x64 architectures
+ * - python.org only provides .pkg installers that require:
+ *   - Running installer (needs automation or user interaction)
+ *   - Extracting from .pkg (more complex, requires pkgutil/xar)
+ *   - Larger download size
+ */
+
+const https = require('https');
+const fs = require('fs');
+const path = require('path');
+const { execSync } = require('child_process');
+
+const PROJECT_ROOT = path.join(__dirname, '..');
+const OUTPUT_ROOT = path.join(PROJECT_ROOT, 'resources', 'python');
+const DOWNLOAD_DIR = path.join(OUTPUT_ROOT, '.downloads');
+
+// Keep the default minor aligned with the checked-in bundled runtime and fallback URLs.
+const PYTHON_MINOR = process.env.OPEN_COWORK_PYTHON_MINOR || '3.10';
+const ABI = `cp${PYTHON_MINOR.replace('.', '')}`; // e.g. 3.12 -> cp312
+
+const GITHUB_REPO = process.env.OPEN_COWORK_PYTHON_STANDALONE_REPO || 'astral-sh/python-build-standalone';
+const RUNTIME_VERSION_FILENAME = 'runtime-version.txt';
+const BUNDLED_GUI_PACKAGES = [
+  'pillow',
+  'pyobjc-framework-Quartz',
+];
+const BUNDLED_RUNTIME_FINGERPRINT = BUNDLED_GUI_PACKAGES.join('|');
+// Use the correct GitHub API endpoint (v3, no trailing slash)
+const RELEASES_API = `https://api.github.com/repos/${GITHUB_REPO}/releases?per_page=30`;
+
+// Default URLs are only used for the checked-in default minor.
+// Other minors fall back to the GitHub releases API or explicit env overrides.
+const DEFAULT_PYTHON_URLS = PYTHON_MINOR === '3.10'
+  ? {
+      'aarch64-apple-darwin': 'https://github.com/astral-sh/python-build-standalone/releases/download/20260203/cpython-3.10.19+20260203-aarch64-apple-darwin-install_only.tar.gz',
+      'x86_64-apple-darwin': 'https://github.com/astral-sh/python-build-standalone/releases/download/20260203/cpython-3.10.19+20260203-x86_64-apple-darwin-install_only.tar.gz',
+    }
+  : {};
+
+const TARGETS = {
+  darwin: {
+    arm64: {
+      triple: 'aarch64-apple-darwin',
+      platformTag: 'macosx_11_0_arm64',
+      envUrlKey: 'OPEN_COWORK_PYTHON_STANDALONE_URL_DARWIN_ARM64',
+    },
+    x64: {
+      triple: 'x86_64-apple-darwin',
+      platformTag: 'macosx_11_0_x86_64',
+      envUrlKey: 'OPEN_COWORK_PYTHON_STANDALONE_URL_DARWIN_X64',
+    },
+  },
+  linux: {
+    x64: {
+      triple: 'x86_64-unknown-linux-gnu',
+      platformTag: 'manylinux2014_x86_64',
+      envUrlKey: 'OPEN_COWORK_PYTHON_STANDALONE_URL_LINUX_X64',
+    },
+  },
+};
+
+function exists(p) {
+  try {
+    fs.accessSync(p);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function ensureDir(dir) {
+  fs.mkdirSync(dir, { recursive: true });
+}
+
+function resolveRuntimeVersionFile(runtimeRoot) {
+  return path.join(runtimeRoot, RUNTIME_VERSION_FILENAME);
+}
+
+function download(url, dest) {
+  return new Promise((resolve, reject) => {
+    ensureDir(path.dirname(dest));
+    const file = fs.createWriteStream(dest);
+
+    const request = https.get(
+      url,
+      {
+        headers: {
+          'User-Agent': 'open-cowork-build-script',
+          Accept: '*/*',
+        },
+      },
+      (response) => {
+        if (response.statusCode === 301 || response.statusCode === 302) {
+          const redirect = response.headers.location;
+          file.close();
+          fs.unlinkSync(dest);
+          return download(redirect, dest).then(resolve).catch(reject);
+        }
+        if (response.statusCode !== 200) {
+          file.close();
+          fs.unlinkSync(dest);
+          reject(new Error(`Download failed: ${response.statusCode} ${response.statusMessage}`));
+          return;
+        }
+        response.pipe(file);
+        file.on('finish', () => {
+          file.close();
+          resolve();
+        });
+      }
+    );
+
+    request.on('error', (err) => {
+      try {
+        file.close();
+        fs.unlinkSync(dest);
+      } catch {}
+      reject(err);
+    });
+  });
+}
+
+function fetchJson(url) {
+  return new Promise((resolve, reject) => {
+    let data = '';
+    const request = https.get(
+      url,
+      {
+        headers: {
+          'User-Agent': 'open-cowork-build-script',
+          Accept: 'application/vnd.github+json',
+        },
+      },
+      (res) => {
+        // Handle redirects (301/302)
+        if (res.statusCode === 301 || res.statusCode === 302) {
+          const redirect = res.headers.location;
+          if (!redirect) {
+            reject(new Error(`HTTP ${res.statusCode} redirect but no Location header for ${url}`));
+            return;
+          }
+          // Recursively follow redirect
+          return fetchJson(redirect).then(resolve).catch(reject);
+        }
+        if (res.statusCode !== 200) {
+          reject(new Error(`HTTP ${res.statusCode} for ${url}`));
+          return;
+        }
+        res.on('data', (chunk) => (data += chunk));
+        res.on('end', () => {
+          try {
+            resolve(JSON.parse(data));
+          } catch (e) {
+            reject(e);
+          }
+        });
+      }
+    );
+    request.on('error', reject);
+  });
+}
+
+/**
+ * Check if a matching archive already exists in DOWNLOAD_DIR
+ * Returns the full path if found, null otherwise
+ */
+function findExistingArchive(triple) {
+  if (!exists(DOWNLOAD_DIR)) {
+    return null;
+  }
+
+  const wantedPrefix = `cpython-${PYTHON_MINOR}`;
+  const files = fs.readdirSync(DOWNLOAD_DIR);
+  
+  for (const file of files) {
+    const filePath = path.join(DOWNLOAD_DIR, file);
+    // Skip if not a file or not an archive
+    if (!fs.statSync(filePath).isFile()) continue;
+    if (!file.endsWith('.tar.gz') && !file.endsWith('.tar.zst')) continue;
+    
+    // Check if filename matches our criteria
+    if (
+      file.includes(wantedPrefix) &&
+      file.includes(triple) &&
+      file.includes('install_only')
+    ) {
+      console.log(`[prepare:python] Found existing archive: ${file}`);
+      return filePath;
+    }
+  }
+  
+  return null;
+}
+
+async function findStandaloneAssetUrl(triple, envUrlKey) {
+  // 1. Explicit override (highest priority)
+  const envUrl = process.env[envUrlKey];
+  if (envUrl) {
+    console.log(`[prepare:python] Using explicit URL override: ${envUrl}`);
+    return envUrl;
+  }
+
+  // 2. Check if archive already exists (skip download and API call)
+  const existingArchive = findExistingArchive(triple);
+  if (existingArchive) {
+    console.log(`[prepare:python] Using existing archive, skipping download`);
+    // Return a placeholder URL (we'll use the existing file path directly)
+    return `file://${existingArchive}`;
+  }
+
+  // 3. Use default hardcoded URLs (fast, no API call needed)
+  const defaultUrl = DEFAULT_PYTHON_URLS[triple];
+  if (defaultUrl) {
+    console.log(`[prepare:python] Using default URL for ${triple}: ${defaultUrl.substring(0, 80)}...`);
+    return defaultUrl;
+  }
+
+  // 4. Fallback: Try GitHub API (only if no default URL available)
+  try {
+    console.log(`[prepare:python] No default URL for ${triple}, fetching from GitHub API: ${RELEASES_API}`);
+    const releases = await fetchJson(RELEASES_API);
+    if (!Array.isArray(releases)) {
+      throw new Error(`Unexpected GitHub API response: expected array, got ${typeof releases}`);
+    }
+
+    const wantedPrefix = `cpython-${PYTHON_MINOR}`;
+
+    for (const rel of releases) {
+      const assets = rel.assets || [];
+      for (const asset of assets) {
+        const name = asset.name || '';
+        const url = asset.browser_download_url || '';
+        const ok =
+          name.includes(wantedPrefix) &&
+          name.includes(triple) &&
+          name.includes('install_only') &&
+          (name.endsWith('.tar.gz') || name.endsWith('.tar.zst')) &&
+          url;
+        if (ok) {
+          console.log(`[prepare:python] Found asset: ${name} (${url.substring(0, 80)}...)`);
+          return url;
+        }
+      }
+    }
+
+    throw new Error(
+      `Could not find a python-build-standalone asset for Python ${PYTHON_MINOR} (${triple}) in ${releases.length} releases.\n` +
+        `You can override by setting ${envUrlKey} to a direct .tar.gz URL.`
+    );
+  } catch (apiError) {
+    console.error(`[prepare:python] GitHub API failed: ${apiError.message}`);
+    throw new Error(
+      `Failed to fetch Python from python-build-standalone: ${apiError.message}\n` +
+        `You can:\n` +
+        `  1. Set ${envUrlKey} to a direct download URL\n` +
+        `  2. Or manually download and extract Python under ${OUTPUT_ROOT}\n` +
+        `\nWhy python-build-standalone?\n` +
+        `  - Provides standalone Python (no system dependencies)\n` +
+        `  - Smaller size (~50MB vs ~100MB+ for full installer)\n` +
+        `  - Ready-to-use install_only.tar.gz (no extraction from .pkg needed)\n` +
+        `  - Supports both arm64 and x64 architectures\n` +
+        `\nAlternative: python.org provides .pkg installers that require:\n` +
+        `  - Running installer (needs user interaction or automation)\n` +
+        `  - Extracting from .pkg (more complex)\n` +
+        `  - Larger download size`
+    );
+  }
+}
+
+function getStripComponentsForArchive(archivePath) {
+  const isZst = archivePath.endsWith('.tar.zst');
+  const listCmd = isZst ? `tar --zstd -tf "${archivePath}"` : `tar -tzf "${archivePath}"`;
+  const list = execSync(listCmd, { encoding: 'utf8' }).split('\n');
+  const python3Entry = list.find((p) => p.endsWith('/bin/python3'));
+  if (!python3Entry) {
+    throw new Error(`Could not locate bin/python3 in archive: ${archivePath}`);
+  }
+  const prefix = python3Entry.replace(/\/bin\/python3$/, '').replace(/\/$/, '');
+  const parts = prefix.split('/').filter(Boolean);
+  return parts.length;
+}
+
+function extractArchive(archivePath, destDir) {
+  ensureDir(destDir);
+  // Clean destination to avoid mixing different versions
+  for (const entry of fs.readdirSync(destDir)) {
+    fs.rmSync(path.join(destDir, entry), { recursive: true, force: true });
+  }
+
+  const isZst = archivePath.endsWith('.tar.zst');
+  const strip = getStripComponentsForArchive(archivePath);
+  const extractCmd = isZst
+    ? `tar --zstd -xf "${archivePath}" -C "${destDir}" --strip-components=${strip}`
+    : `tar -xzf "${archivePath}" -C "${destDir}" --strip-components=${strip}`;
+
+  execSync(extractCmd, { stdio: 'inherit' });
+}
+
+function ensurePipAvailable(pythonBin) {
+  try {
+    execSync(`${JSON.stringify(pythonBin)} -m pip --version`, { stdio: 'ignore' });
+  } catch {
+    execSync(`${JSON.stringify(pythonBin)} -m ensurepip --upgrade`, { stdio: 'inherit' });
+  }
+}
+
+function installPackages(siteDir, platformTag, pythonBin) {
+  ensureDir(siteDir);
+
+  const pipPython = process.env.OPEN_COWORK_PIP_PYTHON || pythonBin;
+  const packageSpecs = [...BUNDLED_GUI_PACKAGES];
+  const pythonRoot = path.resolve(siteDir, '..');
+  const runtimeMarkerFile = resolveRuntimeVersionFile(pythonRoot);
+  const runtimeMarker = exists(runtimeMarkerFile)
+    ? fs.readFileSync(runtimeMarkerFile, 'utf-8').trim()
+    : '';
+
+  // Avoid re-install if already present
+  const hasPillow = exists(path.join(siteDir, 'PIL'));
+  const hasQuartz = exists(path.join(siteDir, 'Quartz'));
+  if (hasPillow && hasQuartz && runtimeMarker === BUNDLED_RUNTIME_FINGERPRINT) {
+    console.log(`✓ Python packages already present in ${siteDir}`);
+    return;
+  }
+
+  console.log(`📦 Installing Python packages into ${siteDir} (platform=${platformTag})...`);
+  ensurePipAvailable(pipPython);
+
+  // Install wheels into a target directory (no need to run the bundled python)
+  // NOTE: requires network access and a working pip on the build machine.
+  const cmd =
+    `${JSON.stringify(pipPython)} -m pip install --upgrade --no-input --only-binary=:all: ` +
+    `--target "${siteDir}" ` +
+    `--platform "${platformTag}" --python-version "${PYTHON_MINOR}" --implementation "cp" --abi "${ABI}" ` +
+    `${packageSpecs.map((pkg) => JSON.stringify(pkg)).join(' ')}`;
+
+  execSync(cmd, { stdio: 'inherit' });
+  fs.writeFileSync(runtimeMarkerFile, BUNDLED_RUNTIME_FINGERPRINT, 'utf-8');
+}
+
+/**
+ * Remove unnecessary files from the Python runtime to reduce bundle size.
+ *
+ * python-build-standalone ships a full Python with many pre-installed packages
+ * (litellm, google-cloud, grpc, etc.) that we don't need. We only keep the
+ * packages required for GUI automation (PIL, pyobjc/Quartz).
+ */
+function cleanPythonRuntime(destDir, siteDir) {
+  console.log(`🧹 Cleaning Python runtime to reduce bundle size...`);
+
+  // --- 1. Clean site-packages: keep only whitelisted packages ---
+  const SITE_PACKAGES_WHITELIST = new Set([
+    'PIL', 'Pillow', 'Pillow.libs',
+    'Quartz', 'AppKit', 'Foundation', 'CoreFoundation',
+    'objc', 'PyObjCTools',
+    'pyobjc_core', 'pyobjc_framework_Cocoa', 'pyobjc_framework_Quartz',
+  ]);
+
+  // Match package dirs and their .dist-info counterparts
+  function isWhitelisted(name) {
+    // Exact match
+    if (SITE_PACKAGES_WHITELIST.has(name)) return true;
+    // .dist-info for whitelisted packages (e.g. Pillow-10.0.0.dist-info)
+    if (name.endsWith('.dist-info')) {
+      const pkgName = name.replace(/-[\d].*$/, '');
+      // Check if the base package name matches any whitelist entry (case-insensitive)
+      for (const w of SITE_PACKAGES_WHITELIST) {
+        if (pkgName.toLowerCase() === w.toLowerCase()) return true;
+        // Handle underscored variants (pyobjc_core -> pyobjc-core)
+        if (pkgName.toLowerCase().replace(/-/g, '_') === w.toLowerCase()) return true;
+      }
+    }
+    return false;
+  }
+
+  if (exists(siteDir)) {
+    let removedCount = 0;
+    let removedBytes = 0;
+    const entries = fs.readdirSync(siteDir);
+    for (const entry of entries) {
+      if (isWhitelisted(entry)) continue;
+      const entryPath = path.join(siteDir, entry);
+      try {
+        const stat = fs.statSync(entryPath);
+        const size = stat.isDirectory()
+          ? parseInt(execSync(`du -sk "${entryPath}"`, { encoding: 'utf8' }).split('\t')[0], 10) * 1024
+          : stat.size;
+        fs.rmSync(entryPath, { recursive: true, force: true });
+        removedCount++;
+        removedBytes += size;
+      } catch {
+        // Ignore errors during cleanup
+      }
+    }
+    console.log(`  ✓ site-packages: removed ${removedCount} items (~${Math.round(removedBytes / 1024 / 1024)}MB)`);
+  }
+
+  // --- 2. Clean __pycache__ and .pyc files ---
+  // Note: execSync with controlled build-time paths (not user input)
+  try {
+    execSync(`find "${destDir}" -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true`, { stdio: 'ignore' });
+    execSync(`find "${destDir}" -name "*.pyc" -delete 2>/dev/null || true`, { stdio: 'ignore' });
+    console.log(`  ✓ Removed __pycache__ and .pyc files`);
+  } catch {
+    // Ignore errors
+  }
+
+  // --- 3. Remove unnecessary stdlib modules ---
+  const libDir = path.join(destDir, 'lib');
+  // Find the pythonX.Y directory
+  const pythonLibDirs = fs.existsSync(libDir)
+    ? fs.readdirSync(libDir).filter(d => d.startsWith('python'))
+    : [];
+
+  for (const pyDir of pythonLibDirs) {
+    const stdlibDir = path.join(libDir, pyDir);
+    const STDLIB_REMOVE = ['test', 'idlelib', 'lib2to3', 'tkinter', 'pydoc_data', 'ensurepip'];
+    for (const mod of STDLIB_REMOVE) {
+      const modPath = path.join(stdlibDir, mod);
+      if (exists(modPath)) {
+        fs.rmSync(modPath, { recursive: true, force: true });
+        console.log(`  ✓ Removed stdlib/${mod}`);
+      }
+    }
+    // Remove turtle* files
+    try {
+      const turtleFiles = fs.readdirSync(stdlibDir).filter(f => f.startsWith('turtle'));
+      for (const f of turtleFiles) {
+        fs.rmSync(path.join(stdlibDir, f), { recursive: true, force: true });
+      }
+      if (turtleFiles.length > 0) console.log(`  ✓ Removed turtle* (${turtleFiles.length} items)`);
+    } catch { /* ignore */ }
+  }
+
+  // --- 4. Remove Tcl/Tk libraries ---
+  if (exists(libDir)) {
+    const tclTkDirs = fs.readdirSync(libDir).filter(d => d.startsWith('tcl') || d.startsWith('tk'));
+    for (const d of tclTkDirs) {
+      fs.rmSync(path.join(libDir, d), { recursive: true, force: true });
+    }
+    if (tclTkDirs.length > 0) console.log(`  ✓ Removed Tcl/Tk libraries (${tclTkDirs.length} dirs)`);
+  }
+
+  // Report final size
+  try {
+    const sizeStr = execSync(`du -sh "${destDir}"`, { encoding: 'utf8' }).split('\t')[0];
+    console.log(`  📦 Python runtime size after cleanup: ${sizeStr}`);
+  } catch { /* ignore */ }
+}
+
+async function preparePlatformArch(platform, arch) {
+  const target = TARGETS[platform]?.[arch];
+  if (!target) return;
+
+  const destDir = path.join(OUTPUT_ROOT, `${platform}-${arch}`);
+  const pythonBin = path.join(destDir, 'bin', 'python3');
+  const siteDir = path.join(destDir, 'site-packages');
+
+  // Download + extract standalone python if missing
+  if (!exists(pythonBin)) {
+    console.log(`🐍 Preparing standalone Python ${PYTHON_MINOR} for ${platform}-${arch}...`);
+    const url = await findStandaloneAssetUrl(target.triple, target.envUrlKey);
+
+    // Handle file:// URLs (existing archive) vs http(s):// URLs (need download)
+    let archivePath;
+    if (url.startsWith('file://')) {
+      // Existing archive found, use it directly
+      archivePath = url.replace('file://', '');
+      console.log(`✓ Using existing archive: ${archivePath}`);
+    } else {
+      // Need to download
+      const archiveName = path.basename(url);
+      archivePath = path.join(DOWNLOAD_DIR, archiveName);
+
+      if (!exists(archivePath)) {
+        console.log(`⬇️  Downloading: ${archiveName}`);
+        await download(url, archivePath);
+      } else {
+        console.log(`✓ Archive already downloaded: ${archivePath}`);
+      }
+    }
+
+    console.log(`📦 Extracting to: ${destDir}`);
+    extractArchive(archivePath, destDir);
+
+    if (!exists(pythonBin)) {
+      throw new Error(`Python extraction failed: ${pythonBin} not found`);
+    }
+
+    // Clean up Python runtime (remove unnecessary stdlib modules, Tcl/Tk, etc.)
+    cleanPythonRuntime(destDir, siteDir);
+  } else {
+    console.log(`✓ Standalone Python already present: ${pythonBin}`);
+  }
+
+  // Install packages for GUI automation
+  installPackages(siteDir, target.platformTag, pythonBin);
+
+  // Clean site-packages of non-whitelisted packages (also runs after pip install)
+  cleanPythonRuntime(destDir, siteDir);
+}
+
+async function main() {
+  if (process.platform !== 'darwin' && process.platform !== 'linux') {
+    console.log('[prepare:python] Unsupported platform, skipping.');
+    return;
+  }
+
+  ensureDir(OUTPUT_ROOT);
+  ensureDir(DOWNLOAD_DIR);
+
+  const args = process.argv.slice(2);
+  const wantsAll = args.includes('--all');
+  const archIndex = args.indexOf('--arch');
+  const requestedArch = archIndex >= 0 ? args[archIndex + 1] : null;
+  const currentPlatform = process.platform;
+  const currentArch = process.arch === 'arm64' ? 'arm64' : 'x64';
+  const supportedArches = Object.keys(TARGETS[currentPlatform] || {});
+  if (supportedArches.length === 0) {
+    console.log(`[prepare:python] No bundled python targets configured for ${currentPlatform}.`);
+    return;
+  }
+  if (requestedArch && !supportedArches.includes(requestedArch)) {
+    throw new Error(
+      `Unsupported Python target for ${currentPlatform}: ${requestedArch}. Supported: ${supportedArches.join(', ')}`
+    );
+  }
+
+  const arches = wantsAll
+    ? supportedArches
+    : requestedArch
+      ? [requestedArch]
+      : [supportedArches.includes(currentArch) ? currentArch : supportedArches[0]];
+
+  for (const arch of arches) {
+    await preparePlatformArch(currentPlatform, arch);
+  }
+
+  console.log('✅ Bundled Python prepared.');
+}
+
+main().catch((err) => {
+  console.error('\n[prepare:python] ERROR:', err && err.message ? err.message : err);
+  process.exitCode = 1;
+});

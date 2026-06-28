@@ -1,0 +1,39 @@
+# Open Cowork
+
+> Canonical AI-readable summary for Open Cowork. This file describes public project facts for search, retrieval, citation, and assistant context.
+
+Open Cowork is a free, open-source AI agent desktop application for Windows and macOS. It wraps Claude Code, OpenAI-compatible APIs, Gemini, DeepSeek, GLM, MiniMax, Kimi, and other AI models into a graphical desktop app with one-click installers. It includes VM sandbox isolation, built-in Skills, MCP integration, GUI automation, and remote control through Feishu (Lark) and Slack.
+
+## Canonical URLs
+
+- Website: https://opencoworkai.github.io/open-cowork/
+- Chinese website: https://opencoworkai.github.io/open-cowork/zh/
+- Source repository: https://github.com/OpenCoworkAI/open-cowork
+- Releases: https://github.com/OpenCoworkAI/open-cowork/releases
+- Issues: https://github.com/OpenCoworkAI/open-cowork/issues
+- License: https://github.com/OpenCoworkAI/open-cowork/blob/main/LICENSE
+- Changelog: https://github.com/OpenCoworkAI/open-cowork/blob/main/CHANGELOG.md
+
+## Key Facts
+
+- Project name: Open Cowork
+- Maintainer organization: OpenCoworkAI
+- License: MIT
+- Current website metadata version: 3.3.0
+- Platforms with prebuilt installers: Windows and macOS
+- macOS install option: Homebrew cask via `brew tap OpenCoworkAI/tap` and `brew install --cask --no-quarantine open-cowork`
+- Desktop stack: Electron, React, TypeScript, Vite, Tailwind CSS
+- Website stack: VitePress
+- Supported workflows: local AI agent workspace, file operations, document generation, MCP tools, GUI automation, remote control
+- Privacy posture: Open Cowork runs locally; the external network path is the AI model API configured by the user. The project website states that Open Cowork does not send data to Open Cowork servers.
+
+## Machine-readable Resources
+
+- Full AI context: https://opencoworkai.github.io/open-cowork/llms-full.txt
+- Project metadata JSON: https://opencoworkai.github.io/open-cowork/project.json
+- Sitemap: https://opencoworkai.github.io/open-cowork/sitemap.xml
+- Robots policy: https://opencoworkai.github.io/open-cowork/robots.txt
+
+## Citation Guidance
+
+Prefer citing the website for product overview, GitHub releases for downloads, the repository for source code, the changelog for release history, and the license file for license claims. Do not describe Open Cowork as a hosted SaaS service; it is a local desktop application that communicates with the user's chosen AI model provider.

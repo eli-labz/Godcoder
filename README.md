@@ -22,6 +22,8 @@
 
 Godcoder is a **local-first, fully open-source AI coding agent** that runs as a native desktop app. Unlike cloud-based tools, your source code never transits a vendor backend — API requests go straight from your machine to whichever model provider you configure.
 
+It goes beyond editing code: Godcoder can **build and continuously improve its own agent harness** (Harness mode) and **self-train to drive the Open Cowork desktop app**, even **executing human-action tasks** — clicking, typing, opening apps, sending email, e-signing — through GUI/OS automation (CoWork mode). Both modes run a self-optimizing loop that compounds lessons over time, so the agent gets measurably better with use.
+
 ```
 Your Machine ──► Model Provider (OpenAI / Anthropic / Any OpenAI-compatible API)
      ▲
@@ -87,7 +89,7 @@ The loop is powered by the [`self-optimizing-harness`](./crates/agent/default-sk
 | Feature | Description |
 |---|---|
 | 🧬 **Real-Time Self-Built Harness** | The agent scaffolds, writes, and optimizes its own agent harness live — no human prompting required |
-| 🧠 **Ask / Plan / Coding / Freestyle / Harness Modes** | From answering questions to fully autonomous coding — pick the depth that fits your task |
+| 🧠 **Ask / Plan / Coding / Freestyle / Harness / CoWork Modes** | From answering questions to fully autonomous coding — self-building its own harness, and self-training to drive the Open Cowork desktop app |
 | 📝 **In-place File Editing** | Edit files, review diffs, rewind to checkpoints, continue from previous turns |
 | 🖥️ **Interactive Terminal** | Built-in terminal, file explorer, and session history |
 | 🔌 **Any LLM Provider** | Plug in OpenAI, Anthropic, or any OpenAI-compatible endpoint — no proxy needed |
@@ -95,6 +97,38 @@ The loop is powered by the [`self-optimizing-harness`](./crates/agent/default-sk
 | 🎙️ **Voice API Integration** | Configure TTS, STT, and Voice-to-Voice from Settings — stored locally |
 | 🔍 **Graph-Aware Code Search** | Optional Context Engine: semantic + structural search over large codebases |
 | 🔒 **Tool Approval Controls** | Deliberate execution with subagents, skills, and approval gates |
+| 👥 **Self-training CoWork** | One-click **CoWork** mode learns to drive Open Cowork and **executes human-action tasks** (GUI/OS automation) |
+
+---
+
+## 👥 Self-training CoWork (drives Open Cowork)
+
+**CoWork mode** turns Godcoder loose on the **Open Cowork** desktop app
+([`third_party/open-cowork-main`](./third_party/open-cowork-main)) — learning to
+operate its Skills (PPTX/DOCX/XLSX/PDF), MCP connectors, and computer-use surface,
+and getting better at it over time. Pick **CoWork** in the new-session composer
+next to **Harness**. You can **add a prompt** describing the objective you want
+it to accomplish — or just press start to let it self-train. Either way it sets
+up a contained `cowork-build/` sandbox, **opens it in your file explorer**, and
+confines its new work there while reading Open Cowork only for reference.
+
+What sets CoWork apart: it doesn't just plan — it **executes human-action tasks**.
+For any step a person would do at a keyboard or screen (clicking, typing, opening
+apps, filling forms, sending email, e-signing, joining meetings), CoWork gets an
+actuation plan via the bridge's **`act`** command and carries it out through Open
+Cowork's computer-use / GUI automation (or OS scripting), verifying each step with
+a screenshot. Only steps that truly need a physical body (drive, lift, repair,
+in-person signature) are handed back to you.
+
+> **route → plan → execute (incl. GUI/OS actuation) → verify → log → optimize → repeat**
+
+The loop is backed by the **`cowork-trainer`** default skill, the same
+**ResearchSwarm bridge** (now also exposing **`act`**), and a digital-cognitive-
+labor classifier that splits each task into digital, actuatable, and physical
+segments. Outcomes are logged under `cowork:`-prefixed tags so coworking lessons
+compound. Like Freestyle and Harness, every tool call is auto-approved (you
+confirm the first time), and a **Clear** button in the session header resets the
+conversation and context whenever you want a fresh start.
 
 ---
 
@@ -110,7 +144,8 @@ crates/
 services/
   context-engine/       Optional Go indexing service (tree-sitter → Qdrant + FalkorDB + BM25)
 third_party/
-  ResearchSwarm-master/ Self-optimizing harness memory + bridge (Harness mode)
+  ResearchSwarm-master/  Self-optimizing memory + bridge (Harness & CoWork modes)
+  open-cowork-main/      Open Cowork desktop app — CoWork mode's training target
 v1/                     Legacy 2024 codegen pipeline — frozen
 ```
 

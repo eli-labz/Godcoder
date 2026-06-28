@@ -37,6 +37,13 @@
   min-width: 0;
 }
 
+/* Loading-skeleton row widths (avoids inline styles). */
+.skeleton_w70 { max-width: 70%; }
+.skeleton_w45 { max-width: 45%; }
+.skeleton_w80 { max-width: 80%; }
+.skeleton_w35 { max-width: 35%; }
+.skeleton_w60 { max-width: 60%; }
+
 .artifacts {
   display: flex;
   flex-direction: column;

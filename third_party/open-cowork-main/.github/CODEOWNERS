@@ -1,0 +1,19 @@
+# Default owners for the entire repository
+* @OpenCoworkAI/core
+
+# AI execution core
+src/main/claude/ @OpenCoworkAI/core
+
+# MCP server lifecycle
+src/main/mcp/ @OpenCoworkAI/core
+
+# Sandbox isolation (WSL / Lima)
+src/main/sandbox/ @OpenCoworkAI/core
+
+# Frontend
+src/renderer/ @OpenCoworkAI/core
+
+# CI/CD and build
+.github/ @OpenCoworkAI/core
+electron-builder.yml @OpenCoworkAI/core
+scripts/ @OpenCoworkAI/core

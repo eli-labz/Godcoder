@@ -40,6 +40,10 @@
   font-size: 11px;
 }
 
+.clickable {
+  cursor: pointer;
+}
+
 .stat_add {
   color: var(--diff-add-color);
   font-family: "Space Mono", monospace;

@@ -1,0 +1,337 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600;8..60,700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* Define CSS variables for theming */
+  :root {
+    /* Dark theme (default) — Claude warm palette */
+    --color-background: #171614;
+    --color-background-secondary: #1d1b18;
+    --color-surface: #22201d;
+    --color-surface-hover: #2a2723;
+    --color-surface-active: #33302b;
+    --color-surface-muted: #1b1916;
+    --color-border: #34302a;
+    --color-border-muted: #2a2722;
+    --color-border-subtle: rgba(255, 245, 232, 0.07);
+    --color-mcp: #9d8abc;
+    --shadow-soft: 0 1px 4px rgba(0, 0, 0, 0.24);
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.22), 0 0 0 1px rgba(255, 245, 232, 0.03);
+    --shadow-elevated: 0 8px 24px rgba(0, 0, 0, 0.34), 0 0 0 1px rgba(255, 245, 232, 0.04);
+    --color-accent: #d67a52;
+    --color-accent-hover: #c56c46;
+    --color-accent-muted: rgba(214, 122, 82, 0.14);
+    --color-text-primary: #f1ece4;
+    --color-text-secondary: #b6ada2;
+    --color-text-muted: #8c8378;
+    --color-success: #22c55e;
+    --color-warning: #eab308;
+    --color-error: #ef4444;
+  }
+
+  /* Light theme override — Claude warm cream */
+  .light {
+    --color-background: #f5f3ed;
+    --color-background-secondary: #f0eee8;
+    --color-surface: #faf9f4;
+    --color-surface-hover: #f5f3ed;
+    --color-surface-active: #eceae4;
+    --color-surface-muted: #f2f0eb;
+    --color-border: #e2dfd9;
+    --color-border-muted: #e8e6e0;
+    --color-border-subtle: rgba(0, 0, 0, 0.05);
+    --color-mcp: #8570a6;
+    --shadow-soft: 0 1px 4px rgba(0, 0, 0, 0.04);
+    --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+    --shadow-elevated: 0 4px 12px rgba(0, 0, 0, 0.1);
+    --color-accent: #d97757;
+    --color-accent-hover: #c46849;
+    --color-accent-muted: #fef3ee;
+    --color-text-primary: #1a1a1a;
+    --color-text-secondary: #5c5c5c;
+    --color-text-muted: #8c8c8c;
+    --color-success: #16a34a;
+    --color-warning: #ca8a04;
+    --color-error: #dc2626;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html,
+  body,
+  #root {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-text-primary);
+    font-family: -apple-system, BlinkMacSystemFont, 'Plus Jakarta Sans', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Custom scrollbar — only on non-macOS platforms.
+     macOS uses native overlay scrollbars which are better. */
+  @supports not (font: -apple-system-body) {
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+      @apply bg-transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      @apply bg-border rounded-full;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      @apply bg-text-muted;
+    }
+  }
+}
+
+@layer components {
+  /* Heading serif font — for titles and headings */
+  .heading-serif {
+    font-family: 'Source Serif 4', Georgia, serif;
+  }
+
+  /* Button styles */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl font-medium transition-all duration-150;
+    @apply focus:outline-none focus:ring-2 focus:ring-accent focus:ring-opacity-30;
+  }
+
+  .btn-primary {
+    @apply bg-accent text-white hover:bg-accent-hover;
+    @apply shadow-soft;
+  }
+
+  .btn-secondary {
+    @apply bg-surface border border-border hover:bg-surface-hover text-text-primary;
+  }
+
+  .btn-ghost {
+    @apply bg-transparent hover:bg-surface-active text-text-secondary hover:text-text-primary;
+  }
+
+  /* Input styles */
+  .input {
+    @apply w-full px-4 py-3 rounded-xl bg-surface border border-border;
+    @apply text-text-primary placeholder:text-text-muted;
+    @apply focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent focus:ring-opacity-30;
+    @apply transition-all duration-150;
+  }
+
+  /* Card styles */
+  .card {
+    @apply bg-surface rounded-2xl shadow-card border border-border-subtle;
+  }
+
+  /* Tag/Chip styles - like the quick action buttons */
+  .tag {
+    @apply inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-surface border border-border;
+    @apply text-sm font-medium text-text-primary;
+    @apply hover:bg-surface-hover hover:shadow-soft cursor-pointer transition-all duration-150;
+  }
+
+  /* Badge styles */
+  .badge {
+    @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium;
+  }
+}
+
+@layer utilities {
+  /* Window drag region for custom titlebar */
+  .titlebar-drag {
+    -webkit-app-region: drag;
+    app-region: drag;
+  }
+
+  .titlebar-no-drag {
+    -webkit-app-region: no-drag;
+    app-region: no-drag;
+  }
+
+  /* Message bubbles */
+  .message-user {
+    @apply bg-surface rounded-2xl border border-border-subtle;
+    width: fit-content;
+    margin-left: auto;
+  }
+
+  /* Prose styling for assistant messages - elegant serif font */
+  .prose-chat {
+    font-family: 'Source Serif 4', Georgia, 'Times New Roman', serif;
+    font-size: 1.0625rem;
+    line-height: 1.625;
+    letter-spacing: -0.01em;
+  }
+
+  .prose-chat p {
+    margin-bottom: 0.75rem;
+  }
+
+  .prose-chat p:last-child {
+    margin-bottom: 0;
+  }
+
+  .prose-chat strong {
+    font-weight: 600;
+  }
+
+  .prose-chat em {
+    font-style: italic;
+  }
+
+  .prose-chat ul, .prose-chat ol {
+    margin: 0.75rem 0;
+    padding-left: 1.5rem;
+  }
+
+  .prose-chat ul {
+    list-style: disc;
+    list-style-position: outside;
+  }
+
+  .prose-chat ul ul {
+    list-style: circle;
+  }
+
+  .prose-chat ul ul ul {
+    list-style: square;
+  }
+
+  .prose-chat ol {
+    list-style: decimal;
+    list-style-position: outside;
+  }
+
+  .prose-chat li {
+    margin-bottom: 0.2rem;
+  }
+
+  /* Tighten markdown loose-lists: avoid large gaps when li wraps content in <p> */
+  .prose-chat li > p {
+    margin-top: 0;
+    margin-bottom: 0;
+  }
+
+  .prose-chat li p {
+    margin-top: 0;
+    margin-bottom: 0;
+  }
+
+  .prose-chat li > ul,
+  .prose-chat li > ol {
+    margin-top: 0.35rem;
+    margin-bottom: 0.35rem;
+  }
+
+  .prose-chat h1, .prose-chat h2, .prose-chat h3, .prose-chat h4 {
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+    font-weight: 600;
+    margin-top: 1.25rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .prose-chat > :first-child {
+    margin-top: 0;
+  }
+
+  .prose-chat h1 { font-size: 1.5rem; }
+  .prose-chat h2 { font-size: 1.25rem; }
+  .prose-chat h3 { font-size: 1.125rem; }
+  .prose-chat h4 { font-size: 1rem; }
+
+  .prose-chat .katex-display {
+    margin: 1rem 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  .prose-chat .katex {
+    font-size: 1.1em;
+  }
+
+  /* Prevent long inline math from overflowing the container */
+  .prose-chat .katex-html {
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  .prose-chat a {
+    color: theme('colors.accent.DEFAULT');
+    text-decoration-line: underline;
+    text-decoration-thickness: 0.08em;
+    text-underline-offset: 0.22em;
+    text-decoration-skip-ink: auto;
+  }
+
+  /* Some model outputs wrap citation links in ~...~; keep links readable */
+  .prose-chat del {
+    text-decoration: none;
+  }
+
+  .prose-chat del a {
+    text-decoration-line: underline;
+  }
+
+  .prose-chat blockquote {
+    margin: 0.75rem 0;
+    padding-left: 1rem;
+    border-left: 3px solid theme('colors.accent.DEFAULT / 40%');
+    color: theme('colors.text.secondary');
+  }
+
+  .prose-chat .footnotes {
+    margin-top: 1rem;
+    font-size: 0.875rem;
+    color: theme('colors.text.muted');
+  }
+
+  .prose-chat .footnotes ol {
+    padding-left: 1.25rem;
+  }
+
+  .prose-chat .footnotes li {
+    margin-bottom: 0.5rem;
+  }
+
+  .prose-chat .footnotes p {
+    margin: 0.25rem 0 0;
+  }
+
+  /* Code block */
+  .code-block {
+    @apply bg-surface-muted rounded-xl p-4 font-mono text-sm overflow-x-auto border border-border-subtle;
+  }
+
+  /* Override hljs theme background to use our code-block background */
+  .code-block .hljs,
+  .code-block code {
+    background: transparent;
+  }
+}
+
+/* Respect reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

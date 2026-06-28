@@ -222,6 +222,11 @@ pub enum ToolMode {
     /// self-optimizing loop that builds and continuously improves the agent
     /// harness in real time (see `harness_prompt.txt`).
     Harness,
+    /// CoWork mode: same full tool suite + full autonomy as Freestyle, run as a
+    /// self-optimizing loop that trains the agent to operate ("cowork") the
+    /// Open Cowork desktop app, improving over time via the ResearchSwarm bridge
+    /// (see `cowork_prompt.txt`).
+    Cowork,
 }
 
 /// Registry of available tools.
@@ -264,7 +269,7 @@ impl ToolRegistry {
                 registry.register(Arc::new(grep::GrepTool));
                 registry.register(Arc::new(ask_user::AskUserTool));
             }
-            ToolMode::Coding | ToolMode::Freestyle | ToolMode::Harness => {
+            ToolMode::Coding | ToolMode::Freestyle | ToolMode::Harness | ToolMode::Cowork => {
                 registry.register(Arc::new(read::ReadTool));
                 registry.register(Arc::new(write::WriteTool));
                 registry.register(Arc::new(bash::BashTool));

@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
-import { X, FileText, Code, File as FileIcon, Bot, MessageCircle, Map, Plus, MoreHorizontal, CircleDashed, Zap, Repeat } from "lucide-react";
+import { X, FileText, Code, File as FileIcon, Bot, MessageCircle, Map, Plus, MoreHorizontal, CircleDashed, Zap, Repeat, Users } from "lucide-react";
 import { useAppStore } from "@/store";
 import { useAgentSend } from "@/hooks/useAgentSend";
 import { saveDraft, loadDraft, clearDraft } from "@/utils/drafts";
@@ -67,7 +67,7 @@ function fileToDataUrl(file: File): Promise<string> {
   });
 }
 
-type Mode = "ask" | "plan" | "coding" | "freestyle" | "harness";
+type Mode = "ask" | "plan" | "coding" | "freestyle" | "harness" | "cowork";
 
 export default function AgentInput({ sessionId, folderPath, agentName = "the agent" }: AgentInputProps) {
   const [text, setText] = useState("");
@@ -295,10 +295,10 @@ export default function AgentInput({ sessionId, folderPath, agentName = "the age
 
   const handleModeChange = useCallback(
     (m: Mode) => {
-      // First time entering Freestyle or Harness, warn that full autonomy
-      // auto-approves every tool call. The choice is remembered so it's a
-      // one-time prompt.
-      if (m === "freestyle" || m === "harness") {
+      // First time entering Freestyle, Harness, or CoWork, warn that full
+      // autonomy auto-approves every tool call. The choice is remembered so it's
+      // a one-time prompt.
+      if (m === "freestyle" || m === "harness" || m === "cowork") {
         ensureFreestyleConfirmed(modal).then((ok) => {
           if (ok) applyMode(m);
         });
@@ -683,15 +683,16 @@ export default function AgentInput({ sessionId, folderPath, agentName = "the age
   const modeSegmented = (
     <Segmented
       size="small"
-      value={mode === "plan" ? "Plan" : mode === "coding" ? "Code" : mode === "freestyle" ? "Free" : mode === "harness" ? "Harness" : "Ask"}
+      value={mode === "plan" ? "Plan" : mode === "coding" ? "Code" : mode === "freestyle" ? "Free" : mode === "harness" ? "Harness" : mode === "cowork" ? "CoWork" : "Ask"}
       options={[
         { label: <span className="flex items-center gap-1"><MessageCircle size={12} />{!isNarrow && <span>Ask</span>}</span>, value: "Ask" },
         { label: <span className="flex items-center gap-1"><Map size={12} />{!isNarrow && <span>Plan</span>}</span>, value: "Plan" },
         { label: <span className="flex items-center gap-1"><Code size={12} />{!isNarrow && <span>Code</span>}</span>, value: "Code" },
         { label: <span className="flex items-center gap-1"><Zap size={12} />{!isNarrow && <span>Freestyle</span>}</span>, value: "Free" },
         { label: <span className="flex items-center gap-1"><Repeat size={12} />{!isNarrow && <span>Harness</span>}</span>, value: "Harness" },
+        { label: <span className="flex items-center gap-1"><Users size={12} />{!isNarrow && <span>CoWork</span>}</span>, value: "CoWork" },
       ]}
-      onChange={(val) => handleModeChange(val === "Plan" ? "plan" : val === "Code" ? "coding" : val === "Free" ? "freestyle" : val === "Harness" ? "harness" : "ask")}
+      onChange={(val) => handleModeChange(val === "Plan" ? "plan" : val === "Code" ? "coding" : val === "Free" ? "freestyle" : val === "Harness" ? "harness" : val === "CoWork" ? "cowork" : "ask")}
       style={{ fontSize: 12, backgroundColor: "var(--white-opacity-10)" }}
     />
   );

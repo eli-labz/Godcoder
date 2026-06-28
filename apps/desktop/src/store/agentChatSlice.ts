@@ -88,7 +88,7 @@ export const createAgentChatSlice: StateCreator<AppStore, [], [], AgentChatSlice
     set((s) => ({
       sessions: s.sessions.map((x) => (x.id === sessionId ? { ...x, mode } : x)),
       agentThreads: s.agentThreads[sessionId]
-        ? { ...s.agentThreads, [sessionId]: { ...s.agentThreads[sessionId], is_coding_session: mode === "coding" || mode === "freestyle" || mode === "harness" } }
+        ? { ...s.agentThreads, [sessionId]: { ...s.agentThreads[sessionId], is_coding_session: mode === "coding" || mode === "freestyle" || mode === "harness" || mode === "cowork" } }
         : s.agentThreads,
     })),
 

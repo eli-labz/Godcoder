@@ -1,0 +1,274 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  lint-and-test:
+    name: Lint & Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Apply patches
+        run: npx patch-package
+
+      - name: Build native modules for tests
+        run: npm rebuild better-sqlite3
+
+      - name: Lint
+        run: npm run lint
+
+      - name: TypeScript check
+        run: npx tsc --noEmit
+
+      - name: Test with Coverage
+        run: npm run test:coverage
+
+  build-macos:
+    name: Release macOS
+    needs: [lint-and-test]
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Cache Electron
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: ~/Library/Caches/electron
+          key: electron-mac-${{ hashFiles('package-lock.json') }}
+          restore-keys: electron-mac-
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install cliclick for GUI tools
+        run: brew install cliclick
+
+      - name: Download Node binaries
+        run: node scripts/download-node.js
+
+      - name: Prepare Python runtime
+        run: node scripts/prepare-python.js
+
+      - name: Prepare GUI tools
+        run: node scripts/prepare-gui-tools.js
+
+      - name: Build Lima agent
+        run: npm run build:lima-agent
+
+      - name: Build MCP servers
+        run: npm run build:mcp
+
+      - name: TypeScript compile
+        run: npx tsc
+
+      - name: Vite build
+        run: npx vite build
+
+      - name: Electron Builder (unsigned)
+        run: npx electron-builder --mac dmg dir --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+      # Verify critical resources are present in the packaged app
+      - name: Smoke test - verify packaged resources
+        run: |
+          set -euo pipefail
+          APP_DIR="release/mac-arm64"
+          APP_NAME=$(ls "$APP_DIR" | grep '\.app$' | head -1)
+          if [ -z "$APP_NAME" ]; then
+            echo "::error::No .app bundle found in $APP_DIR"
+            exit 1
+          fi
+          RESOURCES="$APP_DIR/$APP_NAME/Contents/Resources"
+          echo "Checking resources in: $RESOURCES"
+
+          FAILED=0
+          for check in \
+            "mcp/gui-operate-server.js" \
+            "mcp/software-dev-server-example.js" \
+            "node/bin/node" \
+            "lima-agent/index.js" \
+            "skills"; do
+            if [ -e "$RESOURCES/$check" ]; then
+              echo "  OK: $check"
+            else
+              echo "::error::Missing resource: $check"
+              FAILED=1
+            fi
+          done
+
+          if [ "$FAILED" -eq 1 ]; then
+            echo "::error::Packaged app is missing critical resources"
+            exit 1
+          fi
+          echo "All packaged resources verified."
+
+      - name: Smoke test - launch app
+        run: |
+          set -euo pipefail
+          APP_DIR="release/mac-arm64"
+          APP_NAME=$(ls "$APP_DIR" | grep '\.app$' | head -1)
+          if [ -z "$APP_NAME" ]; then
+            echo "::error::No .app bundle found"
+            exit 1
+          fi
+          EXECUTABLE="$APP_DIR/$APP_NAME/Contents/MacOS/$(echo "$APP_NAME" | sed 's/\.app$//')"
+          echo "Launching: $EXECUTABLE --smoke-test"
+          # macOS runners may not have coreutils timeout; fall back to no timeout
+          if command -v gtimeout >/dev/null 2>&1; then
+            gtimeout 30 "$EXECUTABLE" --smoke-test 2>&1 || EXIT_CODE=$?
+          elif command -v timeout >/dev/null 2>&1; then
+            timeout 30 "$EXECUTABLE" --smoke-test 2>&1 || EXIT_CODE=$?
+          else
+            "$EXECUTABLE" --smoke-test 2>&1 &
+            APP_PID=$!
+            sleep 30
+            if kill -0 "$APP_PID" 2>/dev/null; then
+              kill "$APP_PID"
+              echo "::error::Launch smoke test timed out after 30s"
+              exit 1
+            fi
+            wait "$APP_PID" || EXIT_CODE=$?
+          fi
+          if [ "${EXIT_CODE:-0}" -eq 0 ]; then
+            echo "Launch smoke test passed"
+          else
+            echo "::error::Launch smoke test failed with exit code ${EXIT_CODE}"
+            exit 1
+          fi
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v2
+        with:
+          files: |
+            release/*.dmg
+            release/*.zip
+          draft: true
+
+  build-windows:
+    name: Release Windows
+    needs: [lint-and-test]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Cache Electron
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: ~/AppData/Local/electron/Cache
+          key: electron-win-${{ hashFiles('package-lock.json') }}
+          restore-keys: electron-win-
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download Node binaries
+        run: node scripts/download-node.js
+
+      - name: Build WSL agent
+        run: npm run build:wsl-agent
+
+      - name: Build MCP servers
+        run: npm run build:mcp
+
+      - name: TypeScript compile
+        run: npx tsc
+
+      - name: Vite build
+        run: npx vite build
+
+      - name: Electron Builder
+        run: npx electron-builder --win nsis --publish never
+
+      # Verify critical resources are present in the packaged app
+      - name: Smoke test - verify packaged resources
+        shell: pwsh
+        run: |
+          $unpackedDir = "release\win-unpacked"
+          if (-not (Test-Path $unpackedDir)) {
+            Write-Host "::warning::win-unpacked directory not found, skipping resource check"
+            exit 0
+          }
+
+          $resourcesDir = Join-Path $unpackedDir "resources"
+          Write-Host "Checking resources in: $resourcesDir"
+
+          $checks = @(
+            "mcp\gui-operate-server.js",
+            "mcp\software-dev-server-example.js",
+            "node\node.exe",
+            "wsl-agent\index.js",
+            "skills"
+          )
+
+          $failed = $false
+          foreach ($check in $checks) {
+            $fullPath = Join-Path $resourcesDir $check
+            if (Test-Path $fullPath) {
+              Write-Host "  OK: $check"
+            } else {
+              Write-Host "::error::Missing resource: $check"
+              $failed = $true
+            }
+          }
+
+          if ($failed) {
+            Write-Host "::error::Packaged app is missing critical resources"
+            exit 1
+          }
+          Write-Host "All packaged resources verified."
+
+      - name: Smoke test - launch app
+        shell: pwsh
+        run: |
+          $unpackedDir = "release\win-unpacked"
+          $exe = Get-ChildItem -Path $unpackedDir -Filter "*.exe" | Where-Object { $_.Name -notmatch 'Uninstall' } | Select-Object -First 1
+          if (-not $exe) {
+            Write-Host "::error::No exe found in win-unpacked"
+            exit 1
+          }
+          Write-Host "Launching: $($exe.FullName) --smoke-test"
+          $proc = Start-Process -FilePath $exe.FullName -ArgumentList "--smoke-test" -PassThru
+          if (-not $proc.WaitForExit(30000)) {
+            $proc.Kill($true)
+            Write-Host "::error::Launch smoke test timed out after 30s"
+            exit 1
+          }
+          if ($proc.ExitCode -eq 0) {
+            Write-Host "Launch smoke test passed"
+          } else {
+            Write-Host "::error::Launch smoke test failed with exit code $($proc.ExitCode)"
+            exit 1
+          }
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v2
+        with:
+          files: |
+            release/*.exe
+          draft: true

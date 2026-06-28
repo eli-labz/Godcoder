@@ -13,6 +13,7 @@ const CODING_PROMPT_TEMPLATE: &str = include_str!("coding_prompt.txt");
 const PLAN_PROMPT_TEMPLATE: &str = include_str!("plan_prompt.txt");
 const FREESTYLE_PROMPT_TEMPLATE: &str = include_str!("freestyle_prompt.txt");
 const HARNESS_PROMPT_TEMPLATE: &str = include_str!("harness_prompt.txt");
+const COWORK_PROMPT_TEMPLATE: &str = include_str!("cowork_prompt.txt");
 
 /// Injected after the static body when a context-engine index is available.
 /// The base templates advertise only grep/glob and instruct the model to "use
@@ -78,6 +79,7 @@ pub fn build_system_prompt(
         ToolMode::Plan => PLAN_PROMPT_TEMPLATE,
         ToolMode::Freestyle => FREESTYLE_PROMPT_TEMPLATE,
         ToolMode::Harness => HARNESS_PROMPT_TEMPLATE,
+        ToolMode::Cowork => COWORK_PROMPT_TEMPLATE,
     };
 
     let static_body = template.replace("{{working_dir}}", &working_dir.display().to_string());

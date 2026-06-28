@@ -1,0 +1,100 @@
+{
+  "schemaVersion": "1.0",
+  "name": "Open Cowork",
+  "organization": "OpenCoworkAI",
+  "canonicalUrl": "https://opencoworkai.github.io/open-cowork/",
+  "localizedUrls": {
+    "en": "https://opencoworkai.github.io/open-cowork/",
+    "zh-CN": "https://opencoworkai.github.io/open-cowork/zh/"
+  },
+  "repository": "https://github.com/OpenCoworkAI/open-cowork",
+  "releases": "https://github.com/OpenCoworkAI/open-cowork/releases",
+  "issues": "https://github.com/OpenCoworkAI/open-cowork/issues",
+  "license": {
+    "name": "MIT",
+    "url": "https://github.com/OpenCoworkAI/open-cowork/blob/main/LICENSE"
+  },
+  "version": "3.3.0",
+  "lastReviewed": "2026-05-01",
+  "description": "Open-source AI agent desktop app for Windows and macOS with one-click installation, sandbox isolation, multi-model support, built-in Skills, MCP integration, GUI automation, and remote control.",
+  "applicationCategory": "DeveloperApplication",
+  "platforms": ["Windows", "macOS"],
+  "prebuiltInstallerTypes": {
+    "Windows": ".exe",
+    "macOS": ".dmg"
+  },
+  "sourceBuild": {
+    "node": ">=22",
+    "commands": ["npm install", "npm run rebuild", "npm run dev"]
+  },
+  "install": [
+    {
+      "platform": "macOS",
+      "method": "Homebrew",
+      "commands": ["brew tap OpenCoworkAI/tap", "brew install --cask --no-quarantine open-cowork"]
+    },
+    {
+      "platform": "Windows and macOS",
+      "method": "GitHub Releases",
+      "url": "https://github.com/OpenCoworkAI/open-cowork/releases"
+    }
+  ],
+  "capabilities": [
+    "Local AI agent desktop workspace",
+    "Multi-model provider configuration",
+    "Built-in Skills for PPTX, DOCX, XLSX, and PDF workflows",
+    "Model Context Protocol tool integration",
+    "GUI automation through computer use",
+    "Remote control through Feishu (Lark) and Slack",
+    "Workspace path restrictions",
+    "VM sandbox isolation with WSL2 and Lima when available"
+  ],
+  "modelProviders": [
+    {
+      "name": "OpenRouter",
+      "baseUrl": "https://openrouter.ai/api",
+      "recommendedModels": ["claude-4-5-sonnet"]
+    },
+    {
+      "name": "Anthropic",
+      "baseUrl": "default",
+      "recommendedModels": ["claude-4-5-sonnet"]
+    },
+    {
+      "name": "Zhipu AI / GLM",
+      "baseUrl": "https://open.bigmodel.cn/api/anthropic",
+      "recommendedModels": ["glm-4.7", "glm-4.6"]
+    },
+    {
+      "name": "MiniMax",
+      "baseUrl": "https://api.minimaxi.com/anthropic",
+      "recommendedModels": ["minimax-m2"]
+    },
+    {
+      "name": "Kimi",
+      "baseUrl": "https://api.kimi.com/coding/",
+      "recommendedModels": ["kimi-k2"]
+    }
+  ],
+  "securityAndPrivacy": {
+    "localFirst": true,
+    "workspaceBoundary": "File operations are restricted to the selected workspace folder.",
+    "vmIsolation": ["WSL2 on Windows", "Lima on macOS"],
+    "dataPolicy": "Open Cowork runs locally; the external network path is the AI model API configured by the user. The project website states that Open Cowork does not send data to Open Cowork servers."
+  },
+  "machineReadableResources": {
+    "llmsTxt": "https://opencoworkai.github.io/open-cowork/llms.txt",
+    "llmsFullTxt": "https://opencoworkai.github.io/open-cowork/llms-full.txt",
+    "projectJson": "https://opencoworkai.github.io/open-cowork/project.json",
+    "sitemap": "https://opencoworkai.github.io/open-cowork/sitemap.xml",
+    "robots": "https://opencoworkai.github.io/open-cowork/robots.txt"
+  },
+  "sourcePages": [
+    "https://github.com/OpenCoworkAI/open-cowork/blob/main/README.md",
+    "https://github.com/OpenCoworkAI/open-cowork/blob/main/README_zh.md",
+    "https://github.com/OpenCoworkAI/open-cowork/blob/main/CHANGELOG.md",
+    "https://github.com/OpenCoworkAI/open-cowork/blob/main/ROADMAP.md",
+    "https://github.com/OpenCoworkAI/open-cowork/blob/main/SECURITY.md",
+    "https://github.com/OpenCoworkAI/open-cowork/blob/main/CONTRIBUTING.md"
+  ]
+}

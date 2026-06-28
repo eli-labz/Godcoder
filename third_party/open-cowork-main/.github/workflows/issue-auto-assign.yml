@@ -1,0 +1,62 @@
+name: Issue Auto Assign by Platform
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  auto-assign:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+
+    steps:
+      - name: Assign by platform
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const body = (context.payload.issue.body || '').replace(/\r\n/g, '\n');
+
+            // Parse platform field from issue form template
+            // Format: "### Platform\n\nWindows" or "### Platform\n\nmacOS"
+            const platformMatch = body.match(/###\s*Platform\s*\n\n\s*(macOS|Windows|Both)/i);
+            const platform = platformMatch ? platformMatch[1] : null;
+
+            if (!platform) {
+              core.info('No platform field found, skipping auto-assign');
+              return;
+            }
+
+            const assignees = [];
+            const labels = [];
+
+            if (platform === 'Windows') {
+              assignees.push('Sun-sunshine06');
+              labels.push('platform:windows');
+            } else if (platform === 'macOS') {
+              assignees.push('hqhq1025');
+              labels.push('platform:macos');
+            } else if (platform === 'Both') {
+              assignees.push('hqhq1025', 'Sun-sunshine06');
+              labels.push('platform:windows', 'platform:macos');
+            }
+
+            if (assignees.length > 0) {
+              await github.rest.issues.addAssignees({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                assignees,
+              });
+              core.info(`Assigned to: ${assignees.join(', ')}`);
+            }
+
+            if (labels.length > 0) {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                labels,
+              });
+              core.info(`Labels added: ${labels.join(', ')}`);
+            }

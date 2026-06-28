@@ -1,15 +1,15 @@
 import { useCallback, useState } from "react";
 import { Segmented, Tooltip } from "antd";
-import { MessageCircle, Map, Code, Zap, Repeat, ArrowUp, Folder } from "lucide-react";
+import { MessageCircle, Map, Code, Zap, Repeat, Users, ArrowUp, Folder } from "lucide-react";
 import { useSessionLauncher, folderName } from "@/hooks/useSessionLauncher";
 import { dispatchUserMessage } from "@/hooks/useAgentSend";
 import { agentTauriService } from "@/services/agentTauriService";
 import VoiceControls from "@/components/agent/VoiceControls/VoiceControls";
 
-type Mode = "ask" | "plan" | "coding" | "freestyle" | "harness";
+type Mode = "ask" | "plan" | "coding" | "freestyle" | "harness" | "cowork";
 
-const SEG_TO_MODE: Record<string, Mode> = { Ask: "ask", Plan: "plan", Code: "coding", Free: "freestyle", Harness: "harness" };
-const MODE_TO_SEG: Record<Mode, string> = { ask: "Ask", plan: "Plan", coding: "Code", freestyle: "Free", harness: "Harness" };
+const SEG_TO_MODE: Record<string, Mode> = { Ask: "ask", Plan: "plan", Code: "coding", Free: "freestyle", Harness: "harness", CoWork: "cowork" };
+const MODE_TO_SEG: Record<Mode, string> = { ask: "Ask", plan: "Plan", coding: "Code", freestyle: "Free", harness: "Harness", cowork: "CoWork" };
 
 const PLACEHOLDER: Record<Mode, string> = {
   ask: "Ask a question about a codebase…",
@@ -17,6 +17,7 @@ const PLACEHOLDER: Record<Mode, string> = {
   coding: "Describe what you want to build or change…",
   freestyle: "Describe the task — the agent runs it end-to-end…",
   harness: "No prompt or folder needed — just press ▶ to start. Or add an optional focus…",
+  cowork: "Add a prompt with what you want CoWork to do — or just press ▶ to self-train…",
 };
 
 /** Built-in kickoff sent automatically in Harness mode so the user doesn't have
@@ -40,6 +41,33 @@ const HARNESS_KICKOFF =
   "outcome, then optimize and repeat — biasing toward higher-success approaches. Keep iterating " +
   "autonomously and report what the harness learned. Do not wait for me.";
 
+/** Built-in kickoff sent automatically in CoWork mode: the agent creates its own
+ * sandbox folder, opens it in the file explorer, then trains itself to operate
+ * ("cowork") the Open Cowork desktop app, self-optimizing over time via the
+ * ResearchSwarm bridge. An optional typed focus is appended. */
+const COWORK_KICKOFF =
+  "Train yourself to operate and continuously improve your collaboration with the Open Cowork " +
+  "desktop app (at `third_party/open-cowork-main`), starting now. " +
+  "FIRST, set up a contained workspace so you don't modify the rest of the repo:\n" +
+  "1. Create a dedicated folder `cowork-build/` at the repo root (use the bash tool: " +
+  "`mkdir -p cowork-build`). Put ALL new files you author inside it — do not edit files " +
+  "elsewhere in the repo (including `third_party/open-cowork-main`) except to read references.\n" +
+  "2. Open that folder in the system file explorer so I can watch it fill up " +
+  "(Windows: `explorer.exe cowork-build`; macOS: `open cowork-build`; Linux: `xdg-open cowork-build`). " +
+  "Ignore a non-zero exit code from the explorer command.\n" +
+  "3. Read Open Cowork's `readme.md`, `llms.txt`, and `src/` to learn its Skills and MCP surfaces, " +
+  "then inside `cowork-build/` scaffold an integration (a README, an adapter/bridge that drives " +
+  "Open Cowork, example task scripts, and an eval/benchmark script that scores a cowork task).\n" +
+  "THEN run the self-optimizing loop using the cowork-trainer skill and the ResearchSwarm bridge " +
+  "(`py third_party/ResearchSwarm-master/godcoder_harness.py`): route the objective, plan the smallest " +
+  "improvement, execute it end-to-end inside `cowork-build/`, evaluate with your own checks, log the " +
+  "outcome under a `cowork:`-prefixed tag, then optimize and repeat — biasing toward higher-success " +
+  "approaches. For any human-action or hybrid step (clicking, typing, opening apps, sending email, " +
+  "e-signing), do NOT hand it off — get an actuation plan with the `act` command and EXECUTE it via " +
+  "Open Cowork's computer-use / GUI automation (or OS scripting), verifying each step with a screenshot; " +
+  "only defer steps that truly need a physical body. Keep iterating autonomously and report what you " +
+  "learned about coworking. Do not wait for me.";
+
 /** Interactive empty state: type a first message to spin up a session.
  * Picks a project folder (if none chosen), creates + opens the session in the
  * selected mode, then sends the message — so the right panel doubles as a
@@ -59,14 +87,27 @@ export default function EmptySessionView() {
   const submit = useCallback(
     async (explicitText?: string) => {
       const typed = (explicitText ?? text).trim();
-      // Harness mode needs no prompt: fall back to the built-in kickoff, and
-      // append any optional typed focus the user did provide.
+      // Harness and CoWork modes need no prompt: fall back to the built-in
+      // kickoff. In Harness a typed line is an optional focus; in CoWork a typed
+      // prompt becomes the PRIMARY objective the agent must accomplish (using its
+      // self-optimizing + human-action actuation loop), with the kickoff as the
+      // operating procedure.
       const t =
         mode === "harness"
           ? typed
             ? `${HARNESS_KICKOFF}\n\nAdditional focus for this run: ${typed}`
             : HARNESS_KICKOFF
-          : typed;
+          : mode === "cowork"
+            ? typed
+              ? `Your objective for this CoWork run: ${typed}\n\n` +
+                "Accomplish that objective directly — execute any human-action or hybrid step " +
+                "(clicking, typing, opening apps, sending email, e-signing) yourself via the `act` " +
+                "command and Open Cowork's computer-use / GUI automation, deferring only steps that " +
+                "truly need a physical body. Use the operating procedure below to set up your sandbox, " +
+                "drive Open Cowork, and self-optimize as you go.\n\n" +
+                COWORK_KICKOFF
+              : COWORK_KICKOFF
+            : typed;
       if (!t || busy) return;
       setBusy(true);
       try {
@@ -141,6 +182,7 @@ export default function EmptySessionView() {
                 { label: <span className="flex items-center gap-1"><Code size={12} />Code</span>, value: "Code" },
                 { label: <span className="flex items-center gap-1"><Zap size={12} />Freestyle</span>, value: "Free" },
                 { label: <span className="flex items-center gap-1"><Repeat size={12} />Harness</span>, value: "Harness" },
+                { label: <span className="flex items-center gap-1"><Users size={12} />CoWork</span>, value: "CoWork" },
               ]}
               onChange={(val) => setMode(SEG_TO_MODE[val as string])}
               style={{ fontSize: 12, backgroundColor: "var(--white-opacity-10)" }}
@@ -151,8 +193,8 @@ export default function EmptySessionView() {
               <button
                 type="button"
                 onClick={() => submit()}
-                disabled={(mode !== "harness" && !text.trim()) || busy}
-                title={mode === "harness" ? "Start building the harness" : "Start session"}
+                disabled={(mode !== "harness" && mode !== "cowork" && !text.trim()) || busy}
+                title={mode === "harness" ? "Start building the harness" : mode === "cowork" ? "Start training to cowork" : "Start session"}
                 className="flex items-center justify-center w-8 h-8 rounded-lg text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <ArrowUp size={16} />
@@ -169,6 +211,11 @@ export default function EmptySessionView() {
         {mode === "harness" && (
           <p className="text-[11px] text-[var(--text-secondary)] text-center mt-2">
             No prompt or folder needed — just press ▶. The agent targets the GodCoder repo and immediately starts building &amp; self-optimizing its own AI Agent Harness in real time. Every tool call is auto-approved; you'll be asked to confirm the first time.
+          </p>
+        )}
+        {mode === "cowork" && (
+          <p className="text-[11px] text-[var(--text-secondary)] text-center mt-2">
+            No prompt or folder needed — just press ▶. The agent targets the GodCoder repo and immediately starts training itself to drive &amp; self-optimize against the Open Cowork app in real time. Every tool call is auto-approved; you'll be asked to confirm the first time.
           </p>
         )}
       </div>

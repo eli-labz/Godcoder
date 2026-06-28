@@ -8,6 +8,7 @@ import {
   SquareCode,
   Zap,
   Repeat,
+  Users,
   Pencil,
   Trash2,
   ChevronDown,
@@ -30,6 +31,7 @@ const MODE_ICON: Record<string, typeof MessageCircle> = {
   coding: SquareCode,
   freestyle: Zap,
   harness: Repeat,
+  cowork: Users,
 };
 
 /** Modes offered when starting a new session, in display order. */
@@ -39,6 +41,7 @@ const NEW_SESSION_MODES: { mode: string; label: string; desc: string }[] = [
   { mode: "coding", label: "Coding", desc: "Edit with approvals" },
   { mode: "freestyle", label: "Freestyle", desc: "Full autonomy, auto-approved" },
   { mode: "harness", label: "Harness", desc: "Self-optimizing harness, real-time" },
+  { mode: "cowork", label: "CoWork", desc: "Self-trains to drive Open Cowork, real-time" },
 ];
 
 export default function SessionListSidebar() {

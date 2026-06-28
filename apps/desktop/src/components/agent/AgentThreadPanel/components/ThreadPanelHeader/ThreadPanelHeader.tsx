@@ -1,4 +1,4 @@
-import { FolderCode, FilePlus, ChevronDown, Code2, SquareTerminal, FolderOpen } from "lucide-react";
+import { FolderCode, FilePlus, ChevronDown, Code2, SquareTerminal, FolderOpen, Eraser } from "lucide-react";
 import { Dropdown, Button } from "antd";
 import { invoke } from "@tauri-apps/api/core";
 import type { ThreadPanelHeaderProps } from "./types";
@@ -14,6 +14,7 @@ export default function ThreadPanelHeader({
   totalAdditions,
   totalDeletions,
   onExpandDiff,
+  onClear,
 }: ThreadPanelHeaderProps) {
   const folderName = projectDisplayName(folderPath);
 
@@ -38,6 +39,12 @@ export default function ThreadPanelHeader({
 
       <div className="flex-1" />
 
+      <Button className="secondary_small" onClick={onClear} disabled={!onClear} title="Clear this session">
+        <span className="flex items-center gap-1">
+          <Eraser className="w-3 h-3" /> Clear
+        </span>
+      </Button>
+
       <Dropdown trigger={["click"]} menu={{ items: openMenuItems }}>
         <Button className="secondary_small">
           <span className="flex items-center gap-1">
@@ -58,9 +65,8 @@ export default function ThreadPanelHeader({
       )}
 
       <div
-        className={styles.stats}
+        className={`${styles.stats}${onExpandDiff ? ` ${styles.clickable}` : ""}`}
         onClick={onExpandDiff}
-        style={onExpandDiff ? { cursor: "pointer" } : undefined}
         title={onExpandDiff ? "View code changes" : undefined}
       >
         <FilePlus className="w-3.5 h-3.5 text-gray-500 shrink-0" />

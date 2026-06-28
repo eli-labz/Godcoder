@@ -1,0 +1,39 @@
+# Public project pages are intended to be discoverable by search engines and
+# AI retrieval/citation tools. This robots file expresses crawler preferences;
+# it does not grant rights beyond the project's published license and terms.
+
+User-agent: *
+Allow: /
+
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: GPTBot
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Claude-User
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /
+
+# AI-readable context:
+# https://opencoworkai.github.io/open-cowork/llms.txt
+# https://opencoworkai.github.io/open-cowork/llms-full.txt
+# https://opencoworkai.github.io/open-cowork/project.json
+Sitemap: https://opencoworkai.github.io/open-cowork/sitemap.xml

@@ -27,7 +27,7 @@ export function useSessionLauncher() {
       folder_path: s.folder,
       branch: store.agentBranch ?? "main",
       status: s.status === "error" ? "error" : s.status === "active" ? "active" : "completed",
-      is_coding_session: s.mode === "coding" || s.mode === "freestyle" || s.mode === "harness",
+      is_coding_session: s.mode === "coding" || s.mode === "freestyle" || s.mode === "harness" || s.mode === "cowork",
       total_additions: 0,
       total_deletions: 0,
       checkpoints: [],
@@ -52,7 +52,7 @@ export function useSessionLauncher() {
    * if the user cancels the Freestyle warning or creation fails. */
   const createInFolder = useCallback(
     async (folder: string, mode: string = "coding"): Promise<SessionRow | null> => {
-      if ((mode === "freestyle" || mode === "harness") && !(await ensureFreestyleConfirmed(modal))) return null;
+      if ((mode === "freestyle" || mode === "harness" || mode === "cowork") && !(await ensureFreestyleConfirmed(modal))) return null;
       try {
         const session = await agentTauriService.createSession(folder, undefined, mode);
         useAppStore.getState().upsertSession(session);

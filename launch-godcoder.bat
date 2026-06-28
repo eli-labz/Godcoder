@@ -54,8 +54,36 @@ if errorlevel 1 (
     exit /b 1
 )
 
+REM Soft checks for the tools the Harness and CoWork self-optimizing modes use.
+REM These are warnings only - the app still launches without them, but those two
+REM modes need Python (for the ResearchSwarm bridge) and a local model runner.
+where python >nul 2>nul || where py >nul 2>nul
+if errorlevel 1 (
+    echo [Godcoder] Note: Python was not found on PATH. Harness/CoWork modes drive
+    echo            the ResearchSwarm bridge via Python - install Python 3.10+ to
+    echo            enable their self-optimizing loop. Other modes are unaffected.
+)
+where ollama >nul 2>nul
+if errorlevel 1 (
+    echo [Godcoder] Note: Ollama was not found on PATH. To run the bundled local
+    echo            model, install it from https://ollama.com and pull a model,
+    echo            e.g.  ollama pull qwen2.5-coder:7b-instruct
+)
+
 REM Move to the desktop app folder, relative to this script's location.
 cd /d "%~dp0apps\desktop"
+
+REM First-run convenience: install frontend dependencies if they're missing so a
+REM fresh clone launches without a manual "npm install" step.
+if not exist "node_modules" (
+    echo [Godcoder] Installing frontend dependencies, first run only...
+    call npm install
+    if errorlevel 1 (
+        echo [Godcoder] "npm install" failed. Install Node.js 18+ from https://nodejs.org
+        pause
+        exit /b 1
+    )
+)
 
 REM Development mode (loads frontend from the local Vite dev server).
 set "APP_ENV=development"

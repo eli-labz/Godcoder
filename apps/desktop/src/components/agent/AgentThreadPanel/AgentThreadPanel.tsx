@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, Skeleton } from "antd";
+import { Alert, App, Skeleton } from "antd";
 import { Maximize2, Code } from "lucide-react";
 import { useAppStore } from "@/store";
 import AgentMessageBubble from "../AgentMessageBubble/AgentMessageBubble";
@@ -53,6 +53,31 @@ export default function AgentThreadPanel() {
   const addMessageToThread = useAppStore((s) => s.addMessageToThread);
   const setActiveSession = useAppStore((s) => s.setActiveSession);
   const addCheckpoint = useAppStore((s) => s.addCheckpoint);
+  const replaceThreadMessages = useAppStore((s) => s.replaceThreadMessages);
+  const clearTokenUsage = useAppStore((s) => s.clearTokenUsage);
+  const { modal } = App.useApp();
+
+  const handleClearSession = useCallback(() => {
+    if (!thread) return;
+    const threadId = thread.id;
+    modal.confirm({
+      title: "Clear this session?",
+      content:
+        "This removes the conversation from view and resets the agent's context for this session. Your files and git history are not touched.",
+      okText: "Clear",
+      okButtonProps: { danger: true },
+      cancelText: "Cancel",
+      onOk: async () => {
+        try {
+          await agentTauriService.clearContext(threadId);
+        } catch (err) {
+          console.error("[AgentThreadPanel] Failed to clear context:", err);
+        }
+        replaceThreadMessages(threadId, []);
+        clearTokenUsage(threadId);
+      },
+    });
+  }, [thread, modal, replaceThreadMessages, clearTokenUsage]);
 
   const handleStartEdit = useCallback((msgId: string, text: string, images?: string[]) => {
     setEditingMessageId(msgId);
@@ -229,6 +254,7 @@ export default function AgentThreadPanel() {
             ? () => expandArtifactDiff(thread.id, `diff-full-${thread.id}`)
             : undefined
         }
+        onClear={streaming?.isStreaming ? undefined : handleClearSession}
       />
       {thread.sourcePlanText && <PlanBanner planText={thread.sourcePlanText} />}
       {isLoadingThread && thread.messages.length === 0 && (
@@ -236,7 +262,7 @@ export default function AgentThreadPanel() {
           {[70, 45, 80, 35, 60].map((width, i) => (
             <div key={i} className="flex items-start gap-3">
               <Skeleton.Avatar active size={36} />
-              <div className="flex-1" style={{ maxWidth: `${width}%` }}>
+              <div className={`flex-1 ${styles[`skeleton_w${width}`]}`}>
                 <Skeleton active title={{ width: "40%" }} paragraph={{ rows: i % 2 === 0 ? 2 : 1, width: i % 2 === 0 ? ["100%", "60%"] : ["80%"] }} />
               </div>
             </div>

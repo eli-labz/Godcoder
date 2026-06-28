@@ -25,6 +25,7 @@ import argparse
 from contextlib import closing
 import json
 from pathlib import Path
+import re
 import sqlite3
 import sys
 from typing import Any
@@ -91,6 +92,115 @@ def log_outcome(
 def recall(*, db_path: str | None = None, limit: int = 8) -> dict[str, Any]:
     store = _store(db_path)
     return {"lessons": store.recent_context_lines(limit=limit)}
+
+
+# Human-action verbs that CAN be actuated digitally (via GUI automation /
+# computer-use / OS scripting) rather than handed off to a person. Maps each
+# verb to a concrete actuation primitive CoWork can drive.
+DIGITAL_ACTUATION: dict[str, str] = {
+    "click": "Move the cursor and click the target UI element (computer-use click).",
+    "press": "Send the key press / button activation (computer-use keystroke).",
+    "open": "Launch or focus the target app/window (computer-use or `start`/`open`).",
+    "install": "Run the installer or package manager non-interactively (bash/PowerShell).",
+    "email": "Compose and send the message via the mail client or an API (computer-use or SMTP).",
+    "fax": "Send via an online/e-fax service (computer-use in the browser).",
+    "file": "Save/organize the document into the target location (file tools).",
+    "scan": "Capture the on-screen content as an image (screenshot / computer-use).",
+    "sign": "Apply an e-signature in the document/web flow (computer-use).",
+    "call": "Place the call through a VoIP/softphone client (computer-use).",
+    "phone": "Place the call through a VoIP/softphone client (computer-use).",
+    "meet": "Join the video meeting in the browser/app (computer-use).",
+    "attend": "Join the online session in the browser/app (computer-use).",
+    "interview": "Run the session in the video/chat app (computer-use).",
+    "negotiate": "Conduct the exchange via the chat/email surface (computer-use).",
+    "purchase": "Complete the checkout flow in the browser (computer-use).",
+    "operate": "Drive the target application's controls (computer-use).",
+    "move": "Drag/relocate the window, file, or element (computer-use or file tools).",
+    "pick": "Select the target item in the UI (computer-use).",
+    "photograph": "Take a screenshot of the target region (computer-use).",
+    "speak": "Emit the speech via text-to-speech (OS TTS).",
+    "deliver": "Transmit the digital artifact to its destination (upload/send).",
+    "ship": "Submit the digital order/handoff in the web app (computer-use).",
+}
+
+# Verbs / signals that genuinely require a physical body and cannot be actuated
+# from software. These remain a human handoff even in CoWork actuation mode.
+PHYSICAL_ONLY: set[str] = {
+    "assemble",
+    "bring",
+    "carry",
+    "clean",
+    "drive",
+    "lift",
+    "repair",
+    "travel",
+    "walk",
+}
+
+
+def act(instruction: str, *, db_path: str | None = None, limit: int = 5) -> dict[str, Any]:
+    """Turn a human-action / hybrid task into an executable GUI/OS actuation plan.
+
+    Unlike `route` (which escalates human-action work to a person), `act` is the
+    CoWork surface: it reframes human-action segments as things the agent can
+    actuate through Open Cowork's computer-use / GUI automation, and only flags
+    the segments that truly require a physical body as a human handoff.
+    """
+    agent = DigitalCognitiveLaborAgent()
+    profile = agent.classify_task(instruction).to_dict()
+
+    # Segments the router flagged as human-action become actuation candidates;
+    # for a pure human-action task with no split, treat the whole instruction.
+    candidate_segments = profile["human_segments"] or (
+        [instruction] if profile["domain"] in {"human-action", "hybrid"} else []
+    )
+
+    actuatable: list[str] = []
+    physical_blocked: list[str] = []
+    plan: list[str] = []
+    tokens_seen: set[str] = set()
+
+    for segment in candidate_segments:
+        seg_tokens = re.findall(r"[a-zA-Z][a-zA-Z0-9_-]*", segment.lower())
+        physical = [t for t in seg_tokens if t in PHYSICAL_ONLY]
+        digital_verbs = [t for t in seg_tokens if t in DIGITAL_ACTUATION]
+        physically_pinned = bool(re.search(r"\bin person\b|\bphysically\b|\bon[- ]site\b|\bwet signature\b", segment, re.IGNORECASE))
+        if (physical and not digital_verbs) or physically_pinned:
+            physical_blocked.append(segment)
+            continue
+        actuatable.append(segment)
+        for verb in digital_verbs:
+            if verb not in tokens_seen:
+                tokens_seen.add(verb)
+                plan.append(f"{verb}: {DIGITAL_ACTUATION[verb]}")
+    if actuatable and not plan:
+        # Actuatable segment with no recognized verb: give a generic computer-use step.
+        plan.append("Drive the required UI via Open Cowork computer-use, then capture a screenshot as evidence.")
+
+    if physical_blocked:
+        recommended = (
+            "Actuate the digital/GUI segments now via Open Cowork computer-use and OS automation; "
+            "hand off ONLY the physically-blocked segments to the user."
+        )
+    elif actuatable:
+        recommended = "Actuate every segment via Open Cowork computer-use and OS automation; verify with screenshots."
+    else:
+        recommended = profile["recommended_action"]
+
+    store = _store(db_path)
+    return {
+        "instruction": instruction,
+        "domain": profile["domain"],
+        "mode": "cowork-actuation",
+        "surface": "open-cowork computer-use + OS automation (bash/PowerShell)",
+        "actuatable_segments": actuatable,
+        "physical_blocked_segments": physical_blocked,
+        "actuation_plan": plan,
+        "verify": "After each action, capture a screenshot or read back state to confirm the effect before continuing.",
+        "recommended_action": recommended,
+        "memory_context": store.recent_context_lines(limit=limit),
+    }
+
 
 
 def optimize(*, db_path: str | None = None) -> dict[str, Any]:
@@ -169,6 +279,10 @@ def main(argv: list[str] | None = None) -> int:
     p_route.add_argument("instruction")
     p_route.add_argument("--limit", type=int, default=5)
 
+    p_act = sub.add_parser("act", help="Turn a human-action/hybrid task into a GUI/OS actuation plan (CoWork).")
+    p_act.add_argument("instruction")
+    p_act.add_argument("--limit", type=int, default=5)
+
     p_log = sub.add_parser("log", help="Record a task outcome as a reusable pattern.")
     p_log.add_argument("--status", required=True, choices=["success", "failure", "partial"])
     p_log.add_argument("--summary", required=True)
@@ -184,6 +298,8 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "route":
         _emit(route(args.instruction, db_path=args.db_path, limit=args.limit))
+    elif args.command == "act":
+        _emit(act(args.instruction, db_path=args.db_path, limit=args.limit))
     elif args.command == "log":
         _emit(
             log_outcome(

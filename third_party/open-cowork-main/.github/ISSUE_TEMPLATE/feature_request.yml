@@ -1,0 +1,66 @@
+name: Feature Request
+description: Suggest a new feature or improvement for Open Cowork
+labels: ['enhancement']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Have an idea that would make Open Cowork better? We'd love to hear it.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / Motivation
+      description: What problem does this feature solve? Describe the pain point or use case.
+      placeholder: "I'm always frustrated when..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: Describe the feature you'd like to see. Be as specific as possible.
+      placeholder: 'It would be great if...'
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Any alternative approaches or workarounds you have tried or considered.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which part of the app does this relate to?
+      options:
+        - AI / Agent behaviour
+        - MCP / Tools
+        - Skills
+        - UI / UX
+        - Sandbox (Lima / WSL2)
+        - Remote / Feishu integration
+        - Build / Packaging
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      description: Which platform does this feature apply to?
+      options:
+        - macOS
+        - Windows
+        - Both
+        - N/A
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: Mockups, screenshots, links to prior art, or any other helpful information.

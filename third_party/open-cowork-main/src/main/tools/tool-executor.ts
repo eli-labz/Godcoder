@@ -1,0 +1,985 @@
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
+import { spawn } from 'child_process';
+import { glob } from 'glob';
+import { PathResolver } from '../sandbox/path-resolver';
+import type { ToolResult, ExecutionContext, MountedPath } from '../../renderer/types';
+import { isUncPath } from '../../shared/local-file-path';
+import { isPathWithinRoot } from './path-containment';
+
+/**
+ * ToolExecutor - Secure tool execution framework
+ *
+ * All file operations go through PathResolver for security validation.
+ */
+export class ToolExecutor {
+  private pathResolver: PathResolver;
+
+  constructor(pathResolver: PathResolver) {
+    this.pathResolver = pathResolver;
+  }
+
+  /**
+   * Resolve a user-provided path to a real path within the mounted workspace.
+   * Accepts virtual paths (/mnt/...), absolute paths inside a mount, or
+   * relative paths (treated as relative to the first mount root).
+   */
+  private resolveWorkspacePath(sessionId: string, inputPath: string): string {
+    const mounts = this.pathResolver.getMounts(sessionId);
+    if (!mounts.length) {
+      throw new Error('No mounted workspace for this session');
+    }
+
+    const primaryMount = mounts[0];
+    const normalizedPrimary = path.normalize(primaryMount.real);
+    const trimmed = inputPath.trim();
+
+    // If virtual (/mnt/...), resolve via PathResolver
+    if (trimmed.startsWith('/')) {
+      const resolved = this.pathResolver.resolve(sessionId, trimmed);
+      if (!resolved) {
+        throw new Error('Invalid or unauthorized path');
+      }
+      return this.assertInsideMount(resolved, mounts);
+    }
+
+    // If absolute real path, ensure it lies within a mount
+    const isAbsolute = path.isAbsolute(trimmed) || /^[a-zA-Z]:/.test(trimmed) || isUncPath(trimmed);
+    if (isAbsolute) {
+      const absolutePath = path.normalize(trimmed);
+      return this.assertInsideMount(absolutePath, mounts);
+    }
+
+    // Relative path: join to primary mount root
+    const candidate = path.normalize(path.join(normalizedPrimary, trimmed || '.'));
+    return this.assertInsideMount(candidate, mounts);
+  }
+
+  /**
+   * Ensure a path is inside at least one mount and guard against traversal/symlink escapes.
+   */
+  private assertInsideMount(targetPath: string, mounts: MountedPath[]): string {
+    const normalizedTarget = path.normalize(targetPath);
+    const isWindows = process.platform === 'win32';
+
+    // Symlink resolve if exists; fall back to normalizedTarget on error
+    let realPath: string;
+    try {
+      realPath = fs.existsSync(normalizedTarget)
+        ? fs.realpathSync(normalizedTarget)
+        : normalizedTarget;
+    } catch {
+      realPath = normalizedTarget;
+    }
+
+    const allowed = mounts.some((m) => {
+      const mountRoot = path.normalize(m.real);
+      return isPathWithinRoot(realPath, mountRoot, isWindows);
+    });
+
+    if (!allowed) {
+      throw new Error('Path is outside the mounted workspace');
+    }
+
+    return realPath;
+  }
+
+  /**
+   * Read file contents - Public method for agent-runner
+   */
+  async readFile(sessionId: string, filePath: string): Promise<string> {
+    try {
+      const pathToRead = this.resolveWorkspacePath(sessionId, filePath);
+
+      if (!fs.existsSync(pathToRead)) {
+        throw new Error(`File not found: ${filePath}`);
+      }
+
+      return fs.readFileSync(pathToRead, 'utf-8');
+    } catch (error) {
+      throw new Error(
+        `Failed to read file: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  /**
+   * Write file contents - Public method for agent-runner
+   */
+  async writeFile(sessionId: string, filePath: string, content: string): Promise<void> {
+    try {
+      const pathToWrite = this.resolveWorkspacePath(sessionId, filePath);
+
+      // Ensure directory exists
+      const dir = path.dirname(pathToWrite);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+
+      fs.writeFileSync(pathToWrite, content, 'utf-8');
+    } catch (error) {
+      throw new Error(
+        `Failed to write file: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  /**
+   * List directory contents - Public method for agent-runner
+   */
+  async listDirectory(sessionId: string, dirPath: string): Promise<string> {
+    try {
+      const pathToList = this.resolveWorkspacePath(sessionId, dirPath);
+
+      if (!fs.existsSync(pathToList)) {
+        throw new Error(`Directory not found: ${dirPath}`);
+      }
+
+      const entries = fs.readdirSync(pathToList, { withFileTypes: true });
+      const result: string[] = [];
+
+      for (const entry of entries) {
+        const prefix = entry.isDirectory() ? '[DIR]' : '[FILE]';
+        const size = entry.isFile()
+          ? ` (${this.formatSize(fs.statSync(path.join(pathToList, entry.name)).size)})`
+          : '';
+        result.push(`${prefix} ${entry.name}${size}`);
+      }
+
+      return result.length > 0 ? result.join('\n') : 'Directory is empty';
+    } catch (error) {
+      throw new Error(
+        `Failed to list directory: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  /**
+   * 获取网页并返回文本内容
+   */
+  async webFetch(url: string): Promise<string> {
+    const trimmed = url.trim();
+    if (!trimmed) {
+      throw new Error('URL is required');
+    }
+
+    let parsed: URL;
+    try {
+      parsed = new URL(trimmed);
+    } catch (error) {
+      throw new Error('Invalid URL');
+    }
+
+    if (!['http:', 'https:'].includes(parsed.protocol)) {
+      throw new Error('Only http/https URLs are supported');
+    }
+
+    let response: Response;
+    try {
+      response = await fetch(parsed.toString(), {
+        headers: { 'User-Agent': 'open-cowork' },
+        signal: AbortSignal.timeout(15000),
+      });
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        (error.name === 'AbortError' || error.name === 'TimeoutError')
+      ) {
+        throw new Error('请求超时，请检查网络连接后重试');
+      }
+      throw error;
+    }
+
+    if (!response.ok) {
+      throw new Error(`Request failed with status ${response.status}`);
+    }
+
+    const contentType = response.headers.get('content-type') || 'unknown';
+    const body = await response.text();
+    const limit = 20000;
+    const truncated =
+      body.length > limit
+        ? `${body.slice(0, limit)}\n\n[Truncated ${body.length - limit} chars]`
+        : body;
+
+    return `URL: ${parsed.toString()}\nStatus: ${response.status}\nContent-Type: ${contentType}\n\n${truncated}`;
+  }
+
+  /**
+   * 使用 DuckDuckGo Instant Answer 搜索网页
+   */
+  async webSearch(query: string): Promise<string> {
+    const trimmed = query.trim();
+    if (!trimmed) {
+      throw new Error('Query is required');
+    }
+
+    const searchUrl = new URL('https://api.duckduckgo.com/');
+    searchUrl.searchParams.set('q', trimmed);
+    searchUrl.searchParams.set('format', 'json');
+    searchUrl.searchParams.set('no_redirect', '1');
+    searchUrl.searchParams.set('no_html', '1');
+    searchUrl.searchParams.set('skip_disambig', '1');
+
+    let response: Response;
+    try {
+      response = await fetch(searchUrl.toString(), {
+        headers: { 'User-Agent': 'open-cowork' },
+        signal: AbortSignal.timeout(10000),
+      });
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        (error.name === 'AbortError' || error.name === 'TimeoutError')
+      ) {
+        throw new Error('请求超时，请检查网络连接后重试');
+      }
+      throw error;
+    }
+
+    if (!response.ok) {
+      throw new Error(`Search request failed with status ${response.status}`);
+    }
+
+    const data = (await response.json()) as Record<string, unknown>;
+    const heading = typeof data.Heading === 'string' ? data.Heading : '';
+    const abstractText = typeof data.AbstractText === 'string' ? data.AbstractText : '';
+    const relatedTopics = Array.isArray(data.RelatedTopics) ? data.RelatedTopics : [];
+
+    type TopicItem = { text: string; url?: string };
+    const results: TopicItem[] = [];
+
+    const collectTopics = (topic: unknown): void => {
+      if (!topic || typeof topic !== 'object') return;
+      const record = topic as Record<string, unknown>;
+      const text = typeof record.Text === 'string' ? record.Text : '';
+      const firstUrl = typeof record.FirstURL === 'string' ? record.FirstURL : '';
+      if (text) {
+        results.push({ text, url: firstUrl || undefined });
+      }
+      const nested = Array.isArray(record.Topics) ? record.Topics : [];
+      for (const nestedItem of nested) {
+        collectTopics(nestedItem);
+      }
+    };
+
+    for (const topic of relatedTopics) {
+      collectTopics(topic);
+    }
+
+    const lines: string[] = [];
+    lines.push(`Query: ${trimmed}`);
+    lines.push('Source: DuckDuckGo Instant Answer');
+    if (heading) lines.push(`Heading: ${heading}`);
+    if (abstractText) lines.push(`Abstract: ${abstractText}`);
+
+    const topResults = results.slice(0, 5);
+    if (topResults.length > 0) {
+      lines.push('Results:');
+      for (const item of topResults) {
+        lines.push(`- ${item.text}${item.url ? ` (${item.url})` : ''}`);
+      }
+    } else if (!abstractText) {
+      lines.push('Results: No related topics found.');
+    }
+
+    const output = lines.join('\n');
+    const limit = 20000;
+    return output.length > limit
+      ? `${output.slice(0, limit)}\n\n[Truncated ${output.length - limit} chars]`
+      : output;
+  }
+
+  /**
+   * Validate that a command does not escape the sandbox.
+   * - Blocks absolute paths outside mounts
+   * - Blocks path traversal (..)
+   * - Validates cwd is inside mount
+   */
+  private validateCommandSandbox(sessionId: string, command: string, cwd: string): void {
+    const mounts = this.pathResolver.getMounts(sessionId);
+    if (!mounts.length) {
+      throw new Error('No mounted workspace for this session');
+    }
+
+    // Validate cwd is inside a mount
+    const normalizedCwd = path.normalize(cwd);
+    const cwdAllowed = mounts.some((m) => {
+      const mountRoot = path.normalize(m.real);
+      return isPathWithinRoot(normalizedCwd, mountRoot);
+    });
+    if (!cwdAllowed) {
+      throw new Error('Working directory is outside the mounted workspace');
+    }
+
+    // Block path traversal attempts
+    if (
+      // eslint-disable-next-line no-useless-escape
+      /(?:^|[\s;|&])\.\.(?:[\s;|&\/\\]|$)/.test(command) ||
+      command.includes('../') ||
+      command.includes('..\\')
+    ) {
+      throw new Error('Command blocked: path traversal (..) is not allowed');
+    }
+
+    // Extract potential paths from command (quoted strings and unquoted tokens)
+    const pathPatterns = [
+      // Windows absolute paths: C:\... or C:/...
+      // eslint-disable-next-line no-useless-escape
+      /[A-Za-z]:[\\\/][^\s;|&"'<>]*/g,
+      // UNC absolute paths: \\server\share\...
+      /\\\\[^\s;|&"'<>]+/g,
+      // Unix absolute paths: /...
+      /(?:^|[\s;|&"'])\/[^\s;|&"'<>]+/g,
+      // Quoted paths
+      /"([^"]+)"/g,
+      /'([^']+)'/g,
+    ];
+
+    const extractedPaths: string[] = [];
+    for (const pattern of pathPatterns) {
+      let match;
+      const testStr = command;
+      pattern.lastIndex = 0;
+      while ((match = pattern.exec(testStr)) !== null) {
+        const p = match[1] || match[0];
+        const trimmed = p.trim().replace(/^["'\s]+|["'\s]+$/g, '');
+        if (trimmed) extractedPaths.push(trimmed);
+      }
+    }
+
+    // Validate each extracted path
+    for (const p of extractedPaths) {
+      const isAbsolute = path.isAbsolute(p) || /^[A-Za-z]:/.test(p) || isUncPath(p);
+      if (!isAbsolute) continue; // Relative paths are fine (confined by cwd)
+
+      const normalizedPath = path.normalize(p);
+      const allowed = mounts.some((m) => {
+        const mountRoot = path.normalize(m.real);
+        return isPathWithinRoot(normalizedPath, mountRoot);
+      });
+
+      if (!allowed) {
+        throw new Error(`Command blocked: path "${p}" is outside the mounted workspace`);
+      }
+    }
+
+    // Block dangerous patterns
+    const dangerousPatterns = [
+      // eslint-disable-next-line no-useless-escape
+      /rm\s+-rf?\s+[\/~]/i,
+      /dd\s+if=/i,
+      /mkfs/i,
+      />\s*\/dev\//i,
+      /curl.*\|\s*(?:ba)?sh/i,
+      /wget.*\|\s*(?:ba)?sh/i,
+      /format\s+[A-Za-z]:/i,
+      /del\s+\/[sfq]/i,
+      /rmdir\s+\/[sq]/i,
+      /reg\s+(add|delete)/i,
+      /net\s+(user|localgroup)/i,
+      /powershell\s+.*-enc/i,
+      /Set-ExecutionPolicy/i,
+    ];
+
+    for (const pattern of dangerousPatterns) {
+      if (pattern.test(command)) {
+        throw new Error('Command blocked: potentially dangerous operation');
+      }
+    }
+  }
+
+  /**
+   * Execute shell command - Public method for agent-runner
+   */
+  async executeCommand(sessionId: string, command: string, cwd: string): Promise<string> {
+    // Sandbox validation
+    this.validateCommandSandbox(sessionId, command, cwd);
+
+    return new Promise((resolve, reject) => {
+      // On Windows prefer PowerShell with UTF-8 codepage to reduce quoting/encoding issues
+      const isWindows = process.platform === 'win32';
+      const shell = isWindows ? 'powershell.exe' : '/bin/bash';
+      const args = isWindows
+        ? (() => {
+            const scriptPath = path.join(os.tmpdir(), `oc-exec-${Date.now()}.ps1`);
+            fs.writeFileSync(scriptPath, `chcp 65001 > $null; ${command}`, 'utf-8');
+            return [
+              '-NoProfile',
+              '-NonInteractive',
+              '-ExecutionPolicy',
+              'Bypass',
+              '-File',
+              scriptPath,
+            ];
+          })()
+        : ['-c', command];
+
+      const safeEnv = {
+        PATH: process.env.PATH,
+        HOME: process.env.HOME,
+        LANG: process.env.LANG,
+        TERM: process.env.TERM,
+        SHELL: process.env.SHELL,
+        TMPDIR: process.env.TMPDIR,
+        USER: process.env.USER,
+      };
+      const proc = spawn(shell, args, {
+        cwd,
+        env: { ...safeEnv },
+        timeout: 60000, // 60 second timeout
+      });
+
+      let stdout = '';
+      let stderr = '';
+
+      proc.stdout.on('data', (data) => {
+        stdout += data.toString();
+      });
+
+      proc.stderr.on('data', (data) => {
+        stderr += data.toString();
+      });
+
+      proc.on('error', (error) => {
+        reject(new Error(`Command failed: ${error.message}`));
+      });
+
+      proc.on('close', (code) => {
+        if (isWindows && args[args.length - 1]?.endsWith('.ps1')) {
+          try {
+            fs.unlinkSync(args[args.length - 1]);
+          } catch {
+            /* cleanup best-effort */
+          }
+        }
+        if (code === 0) {
+          resolve(stdout || 'Command completed successfully');
+        } else {
+          reject(new Error(stderr || `Command exited with code ${code}`));
+        }
+      });
+    });
+  }
+
+  /**
+   * Search files - Public method for agent-runner
+   */
+  async searchFiles(
+    sessionId: string,
+    pattern: string,
+    searchPath: string,
+    contentSearch: boolean
+  ): Promise<string> {
+    try {
+      const pathToSearch = this.resolveWorkspacePath(sessionId, searchPath || '.');
+
+      if (!fs.existsSync(pathToSearch)) {
+        throw new Error(`Path not found: ${searchPath}`);
+      }
+
+      if (contentSearch) {
+        // Search file contents
+        const results: string[] = [];
+        if (pattern.length > 1000) {
+          throw new Error('Pattern too long (max 1000 characters)');
+        }
+        let regex: RegExp;
+        try {
+          regex = new RegExp(pattern, 'gi');
+        } catch (regexError) {
+          throw new Error(
+            `Invalid regex pattern: ${regexError instanceof Error ? regexError.message : 'unknown error'}`
+          );
+        }
+        await this.searchDirectoryContents(pathToSearch, regex, results);
+        return results.length > 0 ? results.slice(0, 50).join('\n') : 'No matches found';
+      } else {
+        // Search file names — reject patterns that could escape the workspace
+        if (pattern.startsWith('/') || pattern.startsWith('..')) {
+          throw new Error('Search pattern must be relative and cannot start with / or ..');
+        }
+        const files = await glob(pattern, {
+          cwd: pathToSearch,
+          nodir: false,
+          ignore: ['**/node_modules/**', '**/.git/**'],
+        });
+        return files.length > 0 ? files.slice(0, 100).join('\n') : 'No files found';
+      }
+    } catch (error) {
+      throw new Error(`Search failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Edit file - search and replace
+   */
+  async editFile(
+    sessionId: string,
+    filePath: string,
+    oldString: string,
+    newString: string
+  ): Promise<void> {
+    try {
+      const resolvedPath = this.resolveWorkspacePath(sessionId, filePath);
+
+      if (!fs.existsSync(resolvedPath)) {
+        throw new Error(`File not found: ${filePath}`);
+      }
+
+      const content = fs.readFileSync(resolvedPath, 'utf-8');
+
+      if (!content.includes(oldString)) {
+        throw new Error(`String not found in file: "${oldString.slice(0, 50)}..."`);
+      }
+
+      const newContent = content.split(oldString).join(newString);
+      fs.writeFileSync(resolvedPath, newContent, 'utf-8');
+    } catch (error) {
+      throw new Error(`Edit failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Glob - find files by pattern
+   */
+  async glob(sessionId: string, pattern: string, searchPath: string): Promise<string> {
+    try {
+      // Reject patterns that could escape the workspace
+      if (pattern.startsWith('/') || pattern.startsWith('..')) {
+        throw new Error('Glob pattern must be relative and cannot start with / or ..');
+      }
+
+      const pathToSearch = this.resolveWorkspacePath(sessionId, searchPath || '.');
+
+      if (!fs.existsSync(pathToSearch)) {
+        throw new Error(`Path not found: ${searchPath}`);
+      }
+
+      const files = await glob(pattern, {
+        cwd: pathToSearch,
+        nodir: false,
+        ignore: ['**/node_modules/**', '**/.git/**'],
+      });
+
+      return files.length > 0 ? files.slice(0, 100).join('\n') : 'No files found';
+    } catch (error) {
+      throw new Error(`Glob failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Grep - search file contents with regex
+   */
+  async grep(sessionId: string, pattern: string, searchPath: string): Promise<string> {
+    try {
+      const pathToSearch = this.resolveWorkspacePath(sessionId, searchPath || '.');
+
+      if (!fs.existsSync(pathToSearch)) {
+        throw new Error(`Path not found: ${searchPath}`);
+      }
+
+      const results: string[] = [];
+      if (pattern.length > 1000) {
+        throw new Error('Pattern too long (max 1000 characters)');
+      }
+      let regex: RegExp;
+      try {
+        regex = new RegExp(pattern, 'gi');
+      } catch (regexError) {
+        throw new Error(
+          `Invalid regex pattern: ${regexError instanceof Error ? regexError.message : 'unknown error'}`
+        );
+      }
+      await this.searchDirectoryContents(pathToSearch, regex, results);
+
+      return results.length > 0 ? results.slice(0, 50).join('\n') : 'No matches found';
+    } catch (error) {
+      throw new Error(`Grep failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Search directory contents recursively
+   */
+  private async searchDirectoryContents(
+    dirPath: string,
+    regex: RegExp,
+    results: string[],
+    maxResults: number = 50
+  ): Promise<void> {
+    if (results.length >= maxResults) return;
+
+    // Cap total output at 10MB to prevent memory exhaustion
+    const MAX_OUTPUT_BYTES = 10 * 1024 * 1024;
+    let totalBytes = 0;
+    for (const r of results) {
+      totalBytes += r.length;
+    }
+    if (totalBytes >= MAX_OUTPUT_BYTES) return;
+
+    const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+
+    for (const entry of entries) {
+      if (results.length >= maxResults) break;
+
+      const fullPath = path.join(dirPath, entry.name);
+
+      if (entry.isDirectory()) {
+        if (['node_modules', '.git', 'dist', 'build', '__pycache__'].includes(entry.name)) {
+          continue;
+        }
+        await this.searchDirectoryContents(fullPath, regex, results, maxResults);
+      } else if (entry.isFile()) {
+        const ext = path.extname(entry.name).toLowerCase();
+        const textExtensions = [
+          '.ts',
+          '.tsx',
+          '.js',
+          '.jsx',
+          '.json',
+          '.md',
+          '.txt',
+          '.css',
+          '.html',
+          '.py',
+          '.rs',
+          '.go',
+          '.java',
+          '.c',
+          '.cpp',
+          '.h',
+        ];
+
+        if (!textExtensions.includes(ext) && ext !== '') continue;
+
+        try {
+          const content = fs.readFileSync(fullPath, 'utf-8');
+          const lines = content.split(/\r?\n/);
+
+          lines.forEach((line, index) => {
+            if (results.length < maxResults && regex.test(line)) {
+              results.push(`${fullPath}:${index + 1}: ${line.trim().slice(0, 100)}`);
+            }
+            regex.lastIndex = 0;
+          });
+        } catch {
+          // Skip files that can't be read
+        }
+      }
+    }
+  }
+
+  /**
+   * Format file size
+   */
+  private formatSize(bytes: number): string {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  /**
+   * Execute a tool with the given input (legacy method)
+   */
+  async execute(
+    tool: string,
+    input: Record<string, unknown>,
+    context: ExecutionContext
+  ): Promise<ToolResult> {
+    switch (tool) {
+      case 'read':
+        return this.read(input.path as string, context);
+      case 'write':
+        return this.write(input.path as string, input.content as string, context);
+      case 'edit':
+        return this.edit(
+          input.path as string,
+          input.old_string as string,
+          input.new_string as string,
+          context
+        );
+      case 'glob':
+        return this.globSearch(input.pattern as string, context);
+      case 'grep':
+        return this.grepLegacy(input.pattern as string, input.path as string | undefined, context);
+      case 'bash':
+        return this.bash(input.command as string, context);
+      default:
+        return { success: false, error: `Unknown tool: ${tool}` };
+    }
+  }
+
+  /**
+   * Read file contents (legacy)
+   */
+  private async read(virtualPath: string, context: ExecutionContext): Promise<ToolResult> {
+    try {
+      const realPath = this.pathResolver.resolve(context.sessionId, virtualPath);
+      if (!realPath) {
+        return { success: false, error: 'Invalid or unauthorized path' };
+      }
+
+      const content = fs.readFileSync(realPath, 'utf-8');
+      return { success: true, output: content };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Read failed',
+      };
+    }
+  }
+
+  /**
+   * Write file contents (legacy)
+   */
+  private async write(
+    virtualPath: string,
+    content: string,
+    context: ExecutionContext
+  ): Promise<ToolResult> {
+    try {
+      const realPath = this.pathResolver.resolve(context.sessionId, virtualPath);
+      if (!realPath) {
+        return { success: false, error: 'Invalid or unauthorized path' };
+      }
+
+      const dir = path.dirname(realPath);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+
+      fs.writeFileSync(realPath, content, 'utf-8');
+      return { success: true, output: `File written: ${virtualPath}` };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Write failed',
+      };
+    }
+  }
+
+  /**
+   * Edit file with string replacement (legacy)
+   */
+  private async edit(
+    virtualPath: string,
+    oldString: string,
+    newString: string,
+    context: ExecutionContext
+  ): Promise<ToolResult> {
+    try {
+      const realPath = this.pathResolver.resolve(context.sessionId, virtualPath);
+      if (!realPath) {
+        return { success: false, error: 'Invalid or unauthorized path' };
+      }
+
+      const content = fs.readFileSync(realPath, 'utf-8');
+
+      if (!content.includes(oldString)) {
+        return { success: false, error: 'Old string not found in file' };
+      }
+
+      const newContent = content.split(oldString).join(newString);
+      fs.writeFileSync(realPath, newContent, 'utf-8');
+
+      return { success: true, output: `File edited: ${virtualPath}` };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Edit failed',
+      };
+    }
+  }
+
+  /**
+   * Search for files matching a pattern (legacy)
+   */
+  private async globSearch(pattern: string, context: ExecutionContext): Promise<ToolResult> {
+    try {
+      // Reject patterns that could escape the workspace
+      if (pattern.startsWith('/') || pattern.startsWith('..')) {
+        return {
+          success: false,
+          error: 'Glob pattern must be relative and cannot start with / or ..',
+        };
+      }
+
+      const mounts = this.pathResolver.getMounts(context.sessionId);
+      if (mounts.length === 0) {
+        return { success: false, error: 'No mounted directories' };
+      }
+
+      const allFiles: string[] = [];
+
+      for (const mount of mounts) {
+        const files = await glob(pattern, {
+          cwd: mount.real,
+          nodir: true,
+          ignore: ['**/node_modules/**', '**/.git/**'],
+        });
+
+        for (const file of files) {
+          const virtualPath = path.posix.join(mount.virtual, file);
+          allFiles.push(virtualPath);
+        }
+      }
+
+      return {
+        success: true,
+        output: allFiles.length > 0 ? allFiles.join('\n') : 'No files found',
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Glob failed',
+      };
+    }
+  }
+
+  /**
+   * Search file contents with regex (legacy internal)
+   */
+  private async grepLegacy(
+    pattern: string,
+    virtualPath: string | undefined,
+    context: ExecutionContext
+  ): Promise<ToolResult> {
+    try {
+      const mounts = this.pathResolver.getMounts(context.sessionId);
+      if (mounts.length === 0) {
+        return { success: false, error: 'No mounted directories' };
+      }
+
+      if (pattern.length > 1000) {
+        return { success: false, error: 'Pattern too long (max 1000 characters)' };
+      }
+      let regex: RegExp;
+      try {
+        regex = new RegExp(pattern, 'gm');
+      } catch (regexError) {
+        return {
+          success: false,
+          error: `Invalid regex pattern: ${regexError instanceof Error ? regexError.message : 'unknown error'}`,
+        };
+      }
+      const results: string[] = [];
+
+      if (virtualPath) {
+        const realPath = this.pathResolver.resolve(context.sessionId, virtualPath);
+        if (!realPath || !fs.existsSync(realPath)) {
+          return { success: false, error: 'File not found' };
+        }
+
+        const content = fs.readFileSync(realPath, 'utf-8');
+        const lines = content.split(/\r?\n/);
+
+        lines.forEach((line, index) => {
+          if (regex.test(line)) {
+            results.push(`${virtualPath}:${index + 1}:${line}`);
+          }
+          regex.lastIndex = 0;
+        });
+      } else {
+        for (const mount of mounts) {
+          await this.searchDirectoryContents(mount.real, regex, results);
+        }
+      }
+
+      return {
+        success: true,
+        output: results.length > 0 ? results.slice(0, 100).join('\n') : 'No matches found',
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Grep failed',
+      };
+    }
+  }
+
+  /**
+   * Execute a bash command (legacy)
+   */
+  private async bash(command: string, context: ExecutionContext): Promise<ToolResult> {
+    const cwd = context.cwd || process.cwd();
+
+    // Use the same sandbox validation as executeCommand
+    try {
+      this.validateCommandSandbox(context.sessionId, command, cwd);
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Sandbox validation failed',
+      };
+    }
+
+    return new Promise((resolve) => {
+      const isWindows = process.platform === 'win32';
+      const shell = isWindows ? 'powershell.exe' : '/bin/bash';
+      const args = isWindows
+        ? (() => {
+            const scriptPath = path.join(os.tmpdir(), `oc-exec-${Date.now()}.ps1`);
+            fs.writeFileSync(scriptPath, `chcp 65001 > $null; ${command}`, 'utf-8');
+            return [
+              '-NoProfile',
+              '-NonInteractive',
+              '-ExecutionPolicy',
+              'Bypass',
+              '-File',
+              scriptPath,
+            ];
+          })()
+        : ['-c', command];
+
+      const safeEnv2 = {
+        PATH: process.env.PATH,
+        HOME: process.env.HOME,
+        LANG: process.env.LANG,
+        TERM: process.env.TERM,
+        SHELL: process.env.SHELL,
+        TMPDIR: process.env.TMPDIR,
+        USER: process.env.USER,
+      };
+      const proc = spawn(shell, args, {
+        cwd,
+        env: { ...safeEnv2 },
+        timeout: 30000,
+      });
+
+      let stdout = '';
+      let stderr = '';
+
+      proc.stdout.on('data', (data) => {
+        stdout += data.toString();
+      });
+
+      proc.stderr.on('data', (data) => {
+        stderr += data.toString();
+      });
+
+      proc.on('error', (error) => {
+        resolve({ success: false, error: error.message });
+      });
+
+      proc.on('close', (code) => {
+        if (isWindows && args[args.length - 1]?.endsWith('.ps1')) {
+          try {
+            fs.unlinkSync(args[args.length - 1]);
+          } catch {
+            /* cleanup best-effort */
+          }
+        }
+        if (code === 0) {
+          resolve({ success: true, output: stdout || 'Command completed' });
+        } else {
+          resolve({
+            success: false,
+            error: stderr || `Command exited with code ${code}`,
+          });
+        }
+      });
+    });
+  }
+}

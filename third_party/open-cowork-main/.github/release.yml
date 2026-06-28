@@ -1,0 +1,35 @@
+changelog:
+  exclude:
+    labels:
+      - ignore-for-release
+    authors:
+      - dependabot
+      - github-actions
+  categories:
+    - title: "🚀 Features / 新功能"
+      labels:
+        - enhancement
+        - feat
+    - title: "🐛 Bug Fixes / 修复"
+      labels:
+        - bug
+        - fix
+    - title: "🏗 Refactoring / 重构"
+      labels:
+        - refactor
+    - title: "⚡ Performance / 性能"
+      labels:
+        - performance
+    - title: "🔒 Security / 安全"
+      labels:
+        - security
+    - title: "📦 Build & CI"
+      labels:
+        - build
+        - ci
+    - title: "📝 Documentation / 文档"
+      labels:
+        - documentation
+    - title: "🔧 Other Changes / 其他"
+      labels:
+        - "*"
