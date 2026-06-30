@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "loop-engineering": {
+      "command": "npx",
+      "args": ["-y", "@cobusgreyling/loop-mcp-server"],
+      "env": {
+        "LOOP_PROJECT_ROOT": "."
+      }
+    }
+  }
+}

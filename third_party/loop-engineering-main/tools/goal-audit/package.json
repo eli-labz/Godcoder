@@ -1,0 +1,49 @@
+{
+  "name": "@cobusgreyling/goal-audit",
+  "version": "1.0.2",
+  "description": "Goal engineering readiness auditor for Grok Build /goal. Compute Goal Readiness Score (G0-G3). npx @cobusgreyling/goal-audit . --suggest",
+  "type": "module",
+  "bin": {
+    "goal-audit": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "npm run build && node --test test/auditor.test.mjs",
+    "prepublishOnly": "npm test",
+    "start": "node dist/cli.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "goal-engineering",
+    "grok-build",
+    "grok",
+    "ai-agents",
+    "coding-agents",
+    "readiness",
+    "audit"
+  ],
+  "author": "Cobus Greyling",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cobusgreyling/goal-engineering.git",
+    "directory": "tools/goal-audit"
+  },
+  "homepage": "https://github.com/cobusgreyling/goal-engineering",
+  "bugs": {
+    "url": "https://github.com/cobusgreyling/goal-engineering/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.3",
+    "typescript": "^5.0.0"
+  }
+}

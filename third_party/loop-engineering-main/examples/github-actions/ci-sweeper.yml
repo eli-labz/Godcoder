@@ -1,0 +1,43 @@
+# CI Sweeper — event-driven on workflow failure
+
+name: CI Sweeper Loop
+
+on:
+  workflow_run:
+    workflows: ['*']
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+  checks: read
+
+jobs:
+  sweep:
+    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Record failure context
+        run: |
+          echo "Failed workflow: ${{ github.event.workflow_run.name }}"
+          echo "Head branch: ${{ github.event.workflow_run.head_branch }}"
+          echo "Run URL: ${{ github.event.workflow_run.html_url }}"
+
+      - name: Update ci-sweeper-state.md
+        run: |
+          FILE=ci-sweeper-state.md
+          touch "$FILE"
+          echo "" >> "$FILE"
+          echo "### $(date -u +%Y-%m-%dT%H:%M:%SZ) — workflow failure" >> "$FILE"
+          echo "- Workflow: ${{ github.event.workflow_run.name }}" >> "$FILE"
+          echo "- Branch: ${{ github.event.workflow_run.head_branch }}" >> "$FILE"
+          echo "- URL: ${{ github.event.workflow_run.html_url }}" >> "$FILE"
+          echo "- Loop action: pending agent invocation" >> "$FILE"
+
+      - name: Invoke fix agent
+        run: |
+          echo "::notice::Wire to agent: classify failure, worktree fix, verifier, open PR."
+          echo "See patterns/ci-sweeper.md and docs/safety.md"

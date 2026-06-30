@@ -1,0 +1,294 @@
+{
+  "patterns": [
+    {
+      "id": "pr-babysitter",
+      "name": "PR Babysitter",
+      "file": "pr-babysitter.md",
+      "goal": "Shepherd PRs through review, CI, rebase, and merge",
+      "cadence": "5m-15m",
+      "risk": "medium",
+      "tools": [
+        "grok",
+        "claude-code",
+        "codex",
+        "github-actions"
+      ],
+      "skills": [
+        "pr-review-triage",
+        "minimal-fix",
+        "rebase-and-clean"
+      ],
+      "state": "pr-babysitter-state.md",
+      "phases": [
+        "discover",
+        "triage",
+        "fix",
+        "verify",
+        "notify"
+      ],
+      "human_gates": [
+        "security",
+        "payments",
+        "auth",
+        "max-fix-attempts"
+      ],
+      "starter": "starters/pr-babysitter",
+      "week_one_mode": "L1",
+      "token_cost": "high",
+      "cost": {
+        "tokens_noop": 3000,
+        "tokens_report": 80000,
+        "tokens_action": 250000,
+        "suggested_daily_cap": 2000000,
+        "early_exit_required": true
+      }
+    },
+    {
+      "id": "daily-triage",
+      "name": "Daily Triage",
+      "file": "daily-triage.md",
+      "goal": "Prioritized morning scan of CI, issues, commits, and chat",
+      "cadence": "1d-2h",
+      "risk": "low",
+      "tools": [
+        "grok",
+        "claude-code",
+        "codex",
+        "github-actions"
+      ],
+      "skills": [
+        "loop-triage",
+        "minimal-fix"
+      ],
+      "state": "STATE.md",
+      "phases": [
+        "report",
+        "act-small-wins",
+        "escalate"
+      ],
+      "human_gates": [
+        "design-decisions",
+        "multi-file-refactors"
+      ],
+      "starter": "starters/minimal-loop",
+      "week_one_mode": "L1",
+      "token_cost": "low",
+      "cost": {
+        "tokens_noop": 5000,
+        "tokens_report": 50000,
+        "tokens_action": 200000,
+        "suggested_daily_cap": 100000,
+        "early_exit_required": false
+      }
+    },
+    {
+      "id": "ci-sweeper",
+      "name": "CI Sweeper",
+      "file": "ci-sweeper.md",
+      "goal": "React to failing CI with minimal fixes and escalation",
+      "cadence": "5m-15m",
+      "risk": "medium",
+      "tools": [
+        "grok",
+        "claude-code",
+        "codex",
+        "github-actions"
+      ],
+      "skills": [
+        "ci-triage",
+        "minimal-fix"
+      ],
+      "state": "ci-sweeper-state.md",
+      "phases": [
+        "detect",
+        "classify",
+        "fix",
+        "verify",
+        "escalate"
+      ],
+      "human_gates": [
+        "infra-failures",
+        "max-attempts",
+        "security-tests"
+      ],
+      "starter": "starters/ci-sweeper",
+      "week_one_mode": "L2",
+      "token_cost": "very-high",
+      "cost": {
+        "tokens_noop": 5000,
+        "tokens_report": 50000,
+        "tokens_action": 200000,
+        "suggested_daily_cap": 1000000,
+        "early_exit_required": true
+      }
+    },
+    {
+      "id": "post-merge-cleanup",
+      "name": "Post-Merge Cleanup",
+      "file": "post-merge-cleanup.md",
+      "goal": "Follow-up tech debt and cleanup after merges to main",
+      "cadence": "1d-6h",
+      "risk": "low",
+      "tools": [
+        "grok",
+        "claude-code",
+        "codex",
+        "github-actions"
+      ],
+      "skills": [
+        "post-merge-scan",
+        "minimal-fix"
+      ],
+      "state": "post-merge-state.md",
+      "phases": [
+        "scan-merges",
+        "prioritize",
+        "fix-small",
+        "ticket-large"
+      ],
+      "human_gates": [
+        "architectural-debt",
+        "feature-flags",
+        "large-diffs"
+      ],
+      "starter": "starters/post-merge-cleanup",
+      "week_one_mode": "L1",
+      "token_cost": "low",
+      "cost": {
+        "tokens_noop": 5000,
+        "tokens_report": 40000,
+        "tokens_action": 150000,
+        "suggested_daily_cap": 200000,
+        "early_exit_required": false
+      }
+    },
+    {
+      "id": "dependency-sweeper",
+      "name": "Dependency Sweeper",
+      "file": "dependency-sweeper.md",
+      "goal": "Discover, safely apply, and verify dependency + vulnerability updates with human gates on risky changes",
+      "cadence": "6h-1d",
+      "risk": "medium",
+      "tools": [
+        "grok",
+        "claude-code",
+        "codex",
+        "github-actions"
+      ],
+      "skills": [
+        "dependency-triage",
+        "minimal-fix",
+        "loop-verifier"
+      ],
+      "state": "dependency-sweeper-state.md",
+      "phases": [
+        "scan",
+        "triage-risk",
+        "patch-safe",
+        "verify-worktree",
+        "escalate-risky"
+      ],
+      "human_gates": [
+        "major-bumps",
+        "high-sev-cve",
+        "denylisted-packages",
+        "max-attempts"
+      ],
+      "starter": "starters/dependency-sweeper",
+      "week_one_mode": "L2",
+      "token_cost": "medium",
+      "cost": {
+        "tokens_noop": 5000,
+        "tokens_report": 60000,
+        "tokens_action": 300000,
+        "suggested_daily_cap": 500000,
+        "early_exit_required": true
+      }
+    },
+    {
+      "id": "changelog-drafter",
+      "name": "Changelog Drafter",
+      "file": "changelog-drafter.md",
+      "goal": "Scan merged PRs and commits, draft categorized high-quality release notes or CHANGELOG entries for human review",
+      "cadence": "1d",
+      "risk": "low",
+      "tools": [
+        "grok",
+        "claude-code",
+        "codex",
+        "github-actions"
+      ],
+      "skills": [
+        "changelog-scan",
+        "draft-release-notes",
+        "loop-verifier"
+      ],
+      "state": "changelog-drafter-state.md",
+      "phases": [
+        "scan-merges",
+        "categorize",
+        "draft",
+        "review",
+        "publish"
+      ],
+      "human_gates": [
+        "breaking-changes",
+        "security",
+        "major-features",
+        "marketing-sensitive"
+      ],
+      "starter": "starters/changelog-drafter",
+      "week_one_mode": "L1",
+      "token_cost": "low",
+      "cost": {
+        "tokens_noop": 5000,
+        "tokens_report": 35000,
+        "tokens_action": 80000,
+        "suggested_daily_cap": 100000,
+        "early_exit_required": false
+      }
+    },
+    {
+      "id": "issue-triage",
+      "name": "Issue Triage",
+      "file": "issue-triage.md",
+      "goal": "Discover, deduplicate, prioritize and label incoming issues/discussions so the team always has a clean actionable queue. Excellent low-risk companion to Daily Triage.",
+      "cadence": "2h-1d",
+      "risk": "low",
+      "tools": [
+        "grok",
+        "claude-code",
+        "codex",
+        "github-actions"
+      ],
+      "skills": [
+        "issue-triage",
+        "loop-verifier"
+      ],
+      "state": "issue-triage-state.md",
+      "phases": [
+        "discover",
+        "dedupe",
+        "score",
+        "propose-labels",
+        "human-review"
+      ],
+      "human_gates": [
+        "security",
+        "p0-p1",
+        "ambiguous-duplicates",
+        "stale-closures"
+      ],
+      "starter": "starters/issue-triage",
+      "week_one_mode": "L1",
+      "token_cost": "low",
+      "cost": {
+        "tokens_noop": 3000,
+        "tokens_report": 30000,
+        "tokens_action": 60000,
+        "suggested_daily_cap": 80000,
+        "early_exit_required": false
+      }
+    }
+  ]
+}

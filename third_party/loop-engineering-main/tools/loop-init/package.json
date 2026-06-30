@@ -1,0 +1,55 @@
+{
+  "name": "@cobusgreyling/loop-init",
+  "version": "1.2.2",
+  "description": "Scaffold loop engineering patterns and starters into any project. Supports Grok, Claude Code, Codex and more. npx @cobusgreyling/loop-init . --pattern daily-triage --tool grok",
+  "type": "module",
+  "bin": {
+    "loop-init": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "starters",
+    "templates",
+    "README.md"
+  ],
+  "scripts": {
+    "bundle": "node scripts/bundle-assets.mjs",
+    "build": "npm run bundle && tsc",
+    "test": "npm run build && node --test test/cli.test.mjs",
+    "prepublishOnly": "npm test",
+    "start": "node dist/cli.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "loop-engineering",
+    "ai-agents",
+    "coding-agents",
+    "scaffold",
+    "starter",
+    "claude-code",
+    "grok",
+    "codex",
+    "github-actions",
+    "patterns"
+  ],
+  "author": "Cobus Greyling",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cobusgreyling/loop-engineering.git",
+    "directory": "tools/loop-init"
+  },
+  "homepage": "https://cobusgreyling.github.io/loop-engineering/",
+  "bugs": {
+    "url": "https://github.com/cobusgreyling/loop-engineering/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "devDependencies": {
+    "@types/node": "^26.0.0",
+    "typescript": "^6.0.3"
+  }
+}

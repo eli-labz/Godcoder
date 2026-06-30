@@ -1,0 +1,11 @@
+{
+  "name": "linear",
+  "description": "Read team issues and create/update follow-up tickets from loop state (Post-Merge, Dependency, CI Sweeper).",
+  "scopes": [
+    "issues:read",
+    "issues:write (team-scoped)",
+    "comments:write"
+  ],
+  "usage": "Loop reads existing issue, appends status or creates 'loop-followup' issue with link back to PR/state. Human does final triage/close on high-risk items.",
+  "safety": "Do not auto-close customer-facing or security issues. Record Linear issue ID in STATE.md."
+}

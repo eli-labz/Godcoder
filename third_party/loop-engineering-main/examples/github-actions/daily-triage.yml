@@ -1,0 +1,54 @@
+# Daily Triage — GitHub Actions (tool-agnostic trigger)
+# Invokes your agent harness with a triage prompt. Adapt the "Run agent" step
+# to your setup (Codex CLI, custom script, repository_dispatch to external runner).
+
+name: Daily Triage Loop
+
+on:
+  schedule:
+    - cron: '0 8 * * 1-5'  # 08:00 UTC Mon–Fri
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+  checks: read
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Gather CI context
+        id: ci
+        run: |
+          echo "Recent workflow runs available via gh api"
+          gh run list --limit 10 --json conclusion,name,headBranch,createdAt 2>/dev/null || true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Ensure STATE.md exists
+        run: |
+          if [ ! -f STATE.md ]; then
+            cp starters/minimal-loop/STATE.md.example STATE.md 2>/dev/null || \
+            echo "# Loop State\n\nLast run: never\n\n## High Priority\n\n## Watch List\n" > STATE.md
+          fi
+
+      # Replace this step with your agent invocation:
+      # - Codex CLI in headless mode
+      # - repository_dispatch to a machine running Grok/Claude
+      # - Custom triage script that updates STATE.md
+      - name: Run triage agent
+        run: |
+          echo "::notice::Wire this step to your agent harness."
+          echo "Prompt: Run loop-triage skill. Update STATE.md. Report only unless L2 enabled."
+          echo "See examples/github-actions/README.md"
+
+      - name: Upload state artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: loop-state
+          path: STATE.md
+          if-no-files-found: ignore

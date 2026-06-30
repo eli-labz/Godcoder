@@ -1,0 +1,11 @@
+title: Loop Engineering
+description: Practical reference for designing systems that prompt AI coding agents
+theme: jekyll-theme-minimal
+baseurl: "/loop-engineering"
+url: "https://cobusgreyling.github.io"
+
+markdown: GFM
+
+exclude:
+  - ../node_modules
+  - ../tools

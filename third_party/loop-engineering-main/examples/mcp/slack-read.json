@@ -1,0 +1,6 @@
+{
+  "name": "slack-read",
+  "description": "Read-only ingestion of threads and alerts for Daily Triage or on-call light loops.",
+  "scopes": ["channels:history:read", "groups:history:read"],
+  "notes": "Only the channels the team has explicitly allowlisted. Summarize into STATE.md or the triage report. Never post from the loop unless a separate 'notify' connector with human gate is configured."
+}

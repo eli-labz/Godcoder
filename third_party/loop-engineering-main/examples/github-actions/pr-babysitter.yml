@@ -1,0 +1,23 @@
+name: PR Babysitter (example)
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+  issues: read
+
+jobs:
+  babysit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Placeholder — wire to your agent runtime
+        run: |
+          echo "Run pr-review-triage against open PRs."
+          echo "Update pr-babysitter-state.md in a follow-up PR."
+          echo "No auto-merge in week one — see patterns/pr-babysitter.md"

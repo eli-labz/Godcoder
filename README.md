@@ -201,7 +201,11 @@ npm run tauri:dev
 npm run tauri:build
 ```
 
-> **Windows shortcut:** Double-click `launch-godcoder.bat` in the repo root — it sets up Cargo on PATH and starts the app automatically.
+> **Windows shortcut:** Double-click `launch-godcoder.bat` in the repo root — it sets up Cargo on PATH, refreshes stale Tauri build caches (important if the repo moved drives, e.g. `D:` -> `E:`), and starts the app automatically.
+
+> **Windows brute-force integration path (optional):** Run `launch-godcoder-bruteforce.bat` to first force-install and validate `third_party/ResearchSwarm-master` and `third_party/loop-engineering-main`, then hand off to the normal launcher unchanged.
+>
+> During brute-force bootstrap on Windows, `loop-sync` is treated as required validation. Some vendored loop-engineering source builds (`loop-init`, `loop-cost`) can emit platform-specific warnings (`EPERM` rename / `chmod`) and are treated as optional so bootstrap can still complete.
 
 On first launch: Open **Settings** → add an LLM provider (`base_url` + `api_key` + `model`) → create a session → pick a folder and mode → start coding.
 

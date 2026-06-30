@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/cobusgreyling/loop-engineering/patterns/registry.schema.json",
+  "title": "Loop Pattern Registry",
+  "type": "object",
+  "required": ["patterns"],
+  "additionalProperties": false,
+  "properties": {
+    "patterns": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "file",
+          "goal",
+          "cadence",
+          "risk",
+          "tools",
+          "skills",
+          "state",
+          "phases",
+          "human_gates"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*$"
+          },
+          "name": { "type": "string", "minLength": 3 },
+          "file": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]+\\.md$"
+          },
+          "goal": { "type": "string", "minLength": 10 },
+          "cadence": {
+            "type": "string",
+            "pattern": "^[0-9]+[mhd](-[0-9]+[mhd])?$"
+          },
+          "risk": {
+            "type": "string",
+            "enum": ["low", "medium", "high"]
+          },
+          "tools": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "enum": ["grok", "claude-code", "codex", "github-actions", "cursor", "windsurf", "aider"]
+            }
+          },
+          "skills": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string", "minLength": 2 }
+          },
+          "state": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9-]+\\.md$"
+          },
+          "phases": {
+            "type": "array",
+            "minItems": 2,
+            "items": { "type": "string", "minLength": 2 }
+          },
+          "human_gates": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string", "minLength": 2 }
+          },
+          "starter": { "type": "string" },
+          "week_one_mode": {
+            "type": "string",
+            "enum": ["L1", "L2", "L3"]
+          },
+          "token_cost": {
+            "type": "string",
+            "enum": ["low", "medium", "high", "very-high"]
+          },
+          "cost": {
+            "type": "object",
+            "required": [
+              "tokens_noop",
+              "tokens_report",
+              "tokens_action",
+              "suggested_daily_cap",
+              "early_exit_required"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "tokens_noop": { "type": "integer", "minimum": 1000 },
+              "tokens_report": { "type": "integer", "minimum": 1000 },
+              "tokens_action": { "type": "integer", "minimum": 1000 },
+              "suggested_daily_cap": { "type": "integer", "minimum": 10000 },
+              "early_exit_required": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

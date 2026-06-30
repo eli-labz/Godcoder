@@ -44,6 +44,7 @@ REM ---------------------------------------------------------------------------
 
 REM Ensure Cargo (Rust) is on PATH even if it isn't configured globally.
 set "PATH=%USERPROFILE%\.cargo\bin;%PATH%"
+set "REPO_ROOT=%~dp0"
 
 REM Verify cargo is available before doing anything else.
 where cargo >nul 2>nul
@@ -52,6 +53,18 @@ if errorlevel 1 (
     echo            or make sure cargo.exe is in "%USERPROFILE%\.cargo\bin".
     pause
     exit /b 1
+)
+
+REM Some Rust/Tauri build artifacts embed absolute paths. If this repo moved
+REM drives (for example D: -> E:), those caches can break permission codegen.
+REM Clear only Tauri-related build caches before launch to self-heal reliably.
+if exist "%REPO_ROOT%target\debug\build" (
+    echo [Godcoder] Refreshing Tauri build cache...
+    for /d %%D in ("%REPO_ROOT%target\debug\build\tauri-*") do rmdir /s /q "%%~fD"
+    for /d %%D in ("%REPO_ROOT%target\debug\build\tauri-plugin-*") do rmdir /s /q "%%~fD"
+    for /d %%D in ("%REPO_ROOT%target\debug\build\tauri-runtime-*") do rmdir /s /q "%%~fD"
+    for /d %%D in ("%REPO_ROOT%target\debug\build\tauri-runtime-wry-*") do rmdir /s /q "%%~fD"
+    for /d %%D in ("%REPO_ROOT%target\debug\build\wry-*") do rmdir /s /q "%%~fD"
 )
 
 REM Soft checks for the tools the Harness and CoWork self-optimizing modes use.

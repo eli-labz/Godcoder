@@ -1,0 +1,113 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 320" role="img" aria-label="Anatomy of a loop — animated flow">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0d1420"/>
+      <stop offset="100%" stop-color="#070b12"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#3ee8c5"/>
+      <stop offset="100%" stop-color="#5b9dff"/>
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="3" result="b"/>
+      <feMerge>
+        <feMergeNode in="b"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#3ee8c5"/>
+    </marker>
+    <style>
+      .title { font: 700 22px system-ui, -apple-system, sans-serif; fill: #e8edf5; letter-spacing: -0.02em; }
+      .subtitle { font: 500 13px system-ui, -apple-system, sans-serif; fill: #8b9cb3; }
+      .node-label { font: 600 11px system-ui, -apple-system, sans-serif; fill: #e8edf5; }
+      .node-sub { font: 500 9px system-ui, -apple-system, sans-serif; fill: #8b9cb3; }
+      .flow {
+        fill: none;
+        stroke: url(#accent);
+        stroke-width: 2.5;
+        stroke-linecap: round;
+        stroke-dasharray: 10 8;
+        marker-end: url(#arrow);
+        animation: dash 2.4s linear infinite;
+      }
+      .pulse {
+        animation: pulse 2.4s ease-in-out infinite;
+      }
+      @keyframes dash {
+        to { stroke-dashoffset: -36; }
+      }
+      @keyframes pulse {
+        0%, 100% { opacity: 0.55; }
+        50% { opacity: 1; }
+      }
+    </style>
+  </defs>
+
+  <rect width="960" height="320" rx="18" fill="url(#bg)"/>
+  <rect x="1" y="1" width="958" height="318" rx="17" fill="none" stroke="rgba(62,232,197,0.18)" stroke-width="1"/>
+
+  <text x="32" y="42" class="title">Anatomy of a Loop</text>
+  <text x="32" y="62" class="subtitle">Design once — the system prompts, verifies, and iterates</text>
+
+  <!-- flow path -->
+  <path class="flow" d="M 108 170 C 148 170, 168 130, 208 130
+                         C 248 130, 268 170, 308 170
+                         C 348 170, 368 210, 408 210
+                         C 448 210, 468 170, 508 170
+                         C 548 170, 568 130, 608 130
+                         C 648 130, 668 170, 708 170
+                         C 748 170, 768 210, 808 210
+                         C 848 210, 868 170, 908 170"/>
+
+  <!-- nodes -->
+  <g filter="url(#glow)">
+    <g class="pulse" style="animation-delay: 0s">
+      <rect x="56" y="148" width="104" height="44" rx="12" fill="#111a28" stroke="#3ee8c5" stroke-width="1.5"/>
+      <text x="108" y="168" text-anchor="middle" class="node-label">⏱ Schedule</text>
+      <text x="108" y="182" text-anchor="middle" class="node-sub">cadence</text>
+    </g>
+    <g class="pulse" style="animation-delay: 0.3s">
+      <rect x="156" y="108" width="104" height="44" rx="12" fill="#111a28" stroke="#3ee8c5" stroke-width="1.5"/>
+      <text x="208" y="128" text-anchor="middle" class="node-label">👁 Triage</text>
+      <text x="208" y="142" text-anchor="middle" class="node-sub">skill</text>
+    </g>
+    <g class="pulse" style="animation-delay: 0.6s">
+      <rect x="256" y="148" width="104" height="44" rx="12" fill="#111a28" stroke="#3ee8c5" stroke-width="1.5"/>
+      <text x="308" y="168" text-anchor="middle" class="node-label">📋 STATE</text>
+      <text x="308" y="182" text-anchor="middle" class="node-sub">memory</text>
+    </g>
+    <g class="pulse" style="animation-delay: 0.9s">
+      <rect x="356" y="188" width="104" height="44" rx="12" fill="#111a28" stroke="#5b9dff" stroke-width="1.5"/>
+      <text x="408" y="208" text-anchor="middle" class="node-label">🌲 Worktree</text>
+      <text x="408" y="222" text-anchor="middle" class="node-sub">isolated</text>
+    </g>
+    <g class="pulse" style="animation-delay: 1.2s">
+      <rect x="456" y="148" width="104" height="44" rx="12" fill="#111a28" stroke="#5b9dff" stroke-width="1.5"/>
+      <text x="508" y="168" text-anchor="middle" class="node-label">⚙️ Implement</text>
+      <text x="508" y="182" text-anchor="middle" class="node-sub">sub-agent</text>
+    </g>
+    <g class="pulse" style="animation-delay: 1.5s">
+      <rect x="556" y="108" width="104" height="44" rx="12" fill="#111a28" stroke="#5b9dff" stroke-width="1.5"/>
+      <text x="608" y="128" text-anchor="middle" class="node-label">✓ Verify</text>
+      <text x="608" y="142" text-anchor="middle" class="node-sub">gates</text>
+    </g>
+    <g class="pulse" style="animation-delay: 1.8s">
+      <rect x="656" y="148" width="104" height="44" rx="12" fill="#111a28" stroke="#ffb347" stroke-width="1.5"/>
+      <text x="708" y="168" text-anchor="middle" class="node-label">🔗 MCP / PR</text>
+      <text x="708" y="182" text-anchor="middle" class="node-sub">tools</text>
+    </g>
+    <g class="pulse" style="animation-delay: 2.1s">
+      <rect x="756" y="188" width="104" height="44" rx="12" fill="#111a28" stroke="#ffb347" stroke-width="1.5"/>
+      <text x="808" y="208" text-anchor="middle" class="node-label">🧑 Human gate</text>
+      <text x="808" y="222" text-anchor="middle" class="node-sub">approve / escalate</text>
+    </g>
+    <g>
+      <rect x="856" y="148" width="72" height="44" rx="22" fill="rgba(62,232,197,0.12)" stroke="#3ee8c5" stroke-width="1.5"/>
+      <text x="892" y="176" text-anchor="middle" class="node-label">⟳</text>
+    </g>
+  </g>
+
+  <text x="892" y="248" text-anchor="middle" class="node-sub">loop back</text>
+</svg>

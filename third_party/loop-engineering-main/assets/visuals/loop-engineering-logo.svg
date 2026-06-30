@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-label="Loop Engineering">
+  <defs>
+    <linearGradient id="le-glow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6ff5d8"/>
+      <stop offset="100%" stop-color="#3ee8c5"/>
+    </linearGradient>
+    <filter id="le-soft-glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="1.5" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <rect width="120" height="120" rx="24" fill="#070b12"/>
+  <g fill="none" stroke="url(#le-glow)" stroke-width="3" stroke-linecap="round" filter="url(#le-soft-glow)">
+    <path d="M24 60 L42 42 L60 60 L78 42 L96 60"/>
+    <path d="M24 60 L42 78 L60 60 L78 78 L96 60"/>
+    <path d="M42 42 L42 78"/>
+    <path d="M78 42 L78 78"/>
+    <path d="M24 60 L96 60"/>
+  </g>
+  <g fill="#3ee8c5">
+    <circle cx="42" cy="42" r="5"/>
+    <circle cx="78" cy="78" r="5"/>
+    <circle cx="96" cy="60" r="5"/>
+  </g>
+  <g fill="none" stroke="#3ee8c5" stroke-width="2.5">
+    <circle cx="24" cy="60" r="5"/>
+    <circle cx="60" cy="60" r="5"/>
+    <circle cx="42" cy="78" r="5"/>
+    <circle cx="78" cy="42" r="5"/>
+  </g>
+</svg>

@@ -1,0 +1,250 @@
+name: Daily Triage (dogfood)
+
+on:
+  schedule:
+    - cron: '0 8 * * 1-5'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  statuses: write
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Record run start
+        id: timing
+        run: echo "started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: tools/loop-audit/package-lock.json
+
+      - name: Build loop-audit
+        run: |
+          cd tools/loop-audit
+          npm ci
+          npm run build
+
+      - name: Run reference audit
+        id: audit
+        run: |
+          cd tools/loop-audit
+          node dist/cli.js ../.. --json > /tmp/audit.json
+          SCORE=$(node -e "console.log(JSON.parse(require('fs').readFileSync('/tmp/audit.json','utf8')).score)")
+          LEVEL=$(node -e "console.log(JSON.parse(require('fs').readFileSync('/tmp/audit.json','utf8')).level)")
+          echo "score=$SCORE" >> "$GITHUB_OUTPUT"
+          echo "level=$LEVEL" >> "$GITHUB_OUTPUT"
+
+      - name: Check workflow health
+        id: workflows
+        run: |
+          FAILING=0
+          for wf in validate-patterns audit; do
+            STATUS=$(gh run list --workflow="${wf}.yml" --limit 1 --json conclusion -q '.[0].conclusion' 2>/dev/null || echo "unknown")
+            echo "${wf}: ${STATUS}"
+            if [ "$STATUS" = "failure" ]; then FAILING=$((FAILING + 1)); fi
+          done
+          echo "failing=$FAILING" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Update STATE.md
+        run: |
+          DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          SCORE="${{ steps.audit.outputs.score }}"
+          LEVEL="${{ steps.audit.outputs.level }}"
+          FAILING="${{ steps.workflows.outputs.failing }}"
+          cat > STATE.md <<EOF
+          # Loop State — loop-engineering reference
+
+          Last run: ${DATE} (automated daily-triage workflow)
+
+          ## High Priority (loop is acting or waiting on human)
+
+          - Maintain loop readiness score ≥ 58 (current: **${SCORE}**, level **${LEVEL}**).
+          - Keep npm packages current after tool changes (tag \`loop-audit-v*\`, \`loop-init-v*\`, \`loop-cost-v*\` — see docs/RELEASE.md).
+          $([ "$FAILING" -gt 0 ] && echo "- **${FAILING}** dogfood workflow(s) failing — investigate CI.")
+
+          ## Watch List
+
+          - Expand contributor failure stories (dependency sweeper, multi-loop).
+          - Collect a production story for Post-Merge Cleanup.
+          - Validate \`loop-init\` scaffolds on fresh projects across all patterns.
+
+          ## Recent Noise (ignored this run)
+
+          —
+
+          ---
+          Run log: Updated by \`.github/workflows/daily-triage.yml\`. See \`LOOP.md\` for cadence and gates.
+          EOF
+
+      - name: Append loop-run-log.md
+        id: runlog
+        run: |
+          START="${{ steps.timing.outputs.started_at }}"
+          END=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          DURATION=$(node -e "
+            const s = new Date('${START}').getTime();
+            const e = new Date('${END}').getTime();
+            console.log(Math.max(1, Math.round((e - s) / 1000)));
+          ")
+          FAILING="${{ steps.workflows.outputs.failing }}"
+          SCORE="${{ steps.audit.outputs.score }}"
+          if [ "$FAILING" -gt 0 ]; then
+            OUTCOME="escalated"
+          else
+            OUTCOME="report-only"
+          fi
+          ENTRY=$(node -e "
+            console.log(JSON.stringify({
+              run_id: '${END}',
+              pattern: 'daily-triage',
+              duration_s: Number('${DURATION}'),
+              items_found: Number('${FAILING}') + 1,
+              actions_taken: 1,
+              escalations: Number('${FAILING}'),
+              tokens_estimate: 52000,
+              readiness_score: Number('${SCORE}'),
+              outcome: '${OUTCOME}',
+              workflow_run: '${{ github.run_id }}'
+            }));
+          ")
+          node scripts/append-run-log.mjs "$ENTRY"
+          echo "outcome=${OUTCOME}" >> "$GITHUB_OUTPUT"
+
+      # These run the SAME gates a PR-triggered workflow would. Their outcomes
+      # (not a hardcoded value) drive the commit statuses posted below, so the
+      # loop cannot mark its own change green unless the real gates passed.
+      - name: Run validate gates (for PR status)
+        id: validate_gates
+        continue-on-error: true
+        run: bash scripts/ci-validate-gates.sh
+
+      - name: Run audit gates (for PR status)
+        id: audit_gates
+        continue-on-error: true
+        run: bash scripts/ci-audit-gates.sh
+
+      - name: Fail the run if either gate failed
+        if: steps.validate_gates.outcome == 'failure' || steps.audit_gates.outcome == 'failure'
+        run: |
+          echo "validate gates: ${{ steps.validate_gates.outcome }}"
+          echo "audit gates:    ${{ steps.audit_gates.outcome }}"
+          echo "One or more dogfood gates failed — not opening/merging an automated PR."
+          exit 1
+
+      - name: Open PR for STATE.md + loop-run-log if changed
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if git diff --quiet STATE.md loop-run-log.md; then
+            echo "No STATE.md or loop-run-log.md changes — skip PR"
+            echo "opened=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          BRANCH="automated/daily-triage-$(date -u +%Y-%m-%d)"
+          git fetch origin main "$BRANCH" 2>/dev/null || git fetch origin main
+          # -B keeps working-tree edits; avoids checkout conflicts with modified STATE.md
+          git checkout -B "$BRANCH"
+          git add STATE.md loop-run-log.md
+          git commit -m "chore(loop): daily triage update STATE.md + run log [automated]"
+          if git rev-parse --verify "refs/remotes/origin/${BRANCH}" >/dev/null 2>&1; then
+            git rebase "origin/${BRANCH}"
+          fi
+          git push -u origin "$BRANCH" --force-with-lease
+          echo "head_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "branch=${BRANCH}" >> "$GITHUB_OUTPUT"
+          echo "opened=true" >> "$GITHUB_OUTPUT"
+
+          EXISTING=$(gh pr list --head "${{ github.repository_owner }}:${BRANCH}" --base main --state open --json number -q '.[0].number' 2>/dev/null || true)
+          if [ -n "$EXISTING" ] && [ "$EXISTING" != "null" ]; then
+            echo "PR #$EXISTING already open"
+            PR_NUMBER="$EXISTING"
+          else
+            gh pr create \
+              --base main \
+              --head "$BRANCH" \
+              --title "chore(loop): daily triage STATE.md $(date -u +%Y-%m-%d)" \
+              --body "Automated daily triage update from \`daily-triage.yml\`.
+
+          - Loop readiness: **${{ steps.audit.outputs.score }}** (${{ steps.audit.outputs.level }})
+          - Run log appended (\`${{ steps.runlog.outputs.outcome }}\`)
+          - \`validate\` and \`audit\` statuses posted inline (GITHUB_TOKEN does not trigger PR workflows)."
+            PR_NUMBER=$(gh pr view "$BRANCH" --json number -q '.number')
+          fi
+          echo "number=${PR_NUMBER}" >> "$GITHUB_OUTPUT"
+          gh pr merge "$PR_NUMBER" --auto --squash --delete-branch
+
+      - name: Post required commit statuses for branch protection
+        if: steps.pr.outputs.opened == 'true'
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const sha = '${{ steps.pr.outputs.head_sha }}';
+            if (!sha) {
+              core.setFailed('Missing head_sha for commit statuses');
+              return;
+            }
+            const toState = (outcome) => (outcome === 'success' ? 'success' : 'failure');
+            const checks = [
+              {
+                context: 'validate',
+                description: 'Pattern/registry gates (daily-triage inline)',
+                state: toState('${{ steps.validate_gates.outcome }}'),
+              },
+              {
+                context: 'audit',
+                description: 'Loop readiness gates (daily-triage inline)',
+                state: toState('${{ steps.audit_gates.outcome }}'),
+              },
+            ];
+            for (const check of checks) {
+              await github.rest.repos.createCommitStatus({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                sha,
+                state: check.state,
+                context: check.context,
+                description: check.description,
+                target_url: `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              });
+            }
+
+      - name: Open weekly loop report issue (Mondays)
+        if: github.event.schedule == '0 8 * * 1-5' && format('{0}', github.run_attempt) == '1'
+        run: |
+          DAY=$(date -u +%u)
+          if [ "$DAY" != "1" ]; then echo "Not Monday — skip issue"; exit 0; fi
+          EXISTING=$(gh issue list --label "loop-report" --state open --limit 1 --json number -q '.[0].number' 2>/dev/null || true)
+          if [ -n "$EXISTING" ] && [ "$EXISTING" != "null" ]; then
+            echo "Open loop-report issue #$EXISTING exists"
+            exit 0
+          fi
+          gh label create "loop-report" --color "3ee8c5" --description "Weekly loop triage report" 2>/dev/null || true
+          gh issue create \
+            --title "Loop report — week of $(date -u +%Y-%m-%d)" \
+            --label "loop-report" \
+            --body "## Automated daily triage summary
+
+          - Loop readiness: **${{ steps.audit.outputs.score }}** (${{ steps.audit.outputs.level }})
+          - Latest run outcome: \`${{ steps.runlog.outputs.outcome }}\` (see \`loop-run-log.md\`)
+          - See updated \`STATE.md\` on main after PR merge
+          - Review high-priority items and close or re-prioritize
+
+          _Generated by daily-triage workflow. Human reviews and decides actions._"
+        env:
+          GH_TOKEN: ${{ github.token }}

@@ -1,0 +1,54 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment
+.env
+.env.local
+.venv/
+
+# IDE / editor
+.idea/
+.vscode/
+*.swp
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs & temp
+*.log
+tmp/
+temp/
+
+# Build / dist (loop-audit dist is committed for zero-install runs)
+build/
+**/node_modules/
+!tools/loop-audit/dist/
+!tools/loop-cost/dist/
+!tools/loop-init/dist/
+!tools/mcp-server/dist/
+!tools/goal-audit/dist/
+*.egg-info/
+
+# State files that should not be committed in consumer projects (reference repo dogfoods STATE.md)
+STATE.md
+!STATE.md
+state.json
+*.state
+
+# Grok / agent specific (runtime in user projects; starters are tracked)
+.grok/
+!starters/**/.grok/
+!starters/**/.grok/**
+.claude/
+!starters/**/.claude/
+!starters/**/.claude/**
+.codex/
+!starters/**/.codex/
+!starters/**/.codex/**
+*.session
+!tools/loop-sync/dist/

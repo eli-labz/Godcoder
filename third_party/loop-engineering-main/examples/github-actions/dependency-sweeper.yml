@@ -1,0 +1,25 @@
+name: Dependency Sweeper (example)
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      - name: Placeholder — wire to your agent runtime
+        run: |
+          echo "Run dependency-triage (npm audit / outdated)."
+          echo "Patch-only fixes in worktree with verifier."
+          echo "Update dependency-sweeper-state.md — escalate majors."

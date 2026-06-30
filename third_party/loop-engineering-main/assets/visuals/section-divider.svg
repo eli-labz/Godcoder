@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 48" role="img" aria-hidden="true" preserveAspectRatio="none">
+  <defs>
+    <linearGradient id="line" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="rgba(62,232,197,0)"/>
+      <stop offset="20%" stop-color="rgba(62,232,197,0.45)"/>
+      <stop offset="50%" stop-color="rgba(91,157,255,0.65)"/>
+      <stop offset="80%" stop-color="rgba(62,232,197,0.45)"/>
+      <stop offset="100%" stop-color="rgba(62,232,197,0)"/>
+    </linearGradient>
+    <radialGradient id="orb" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#3ee8c5" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#3ee8c5" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="960" height="48" fill="transparent"/>
+  <line x1="0" y1="24" x2="960" y2="24" stroke="url(#line)" stroke-width="2"/>
+  <circle cx="480" cy="24" r="18" fill="url(#orb)" opacity="0.35"/>
+  <circle cx="480" cy="24" r="5" fill="#3ee8c5"/>
+</svg>

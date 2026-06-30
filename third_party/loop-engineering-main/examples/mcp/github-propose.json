@@ -1,0 +1,11 @@
+{
+  "name": "github-propose",
+  "description": "Read-only discovery + limited propose actions (comments, draft PRs). For PR Babysitter, Daily Triage, Changelog Drafter.",
+  "permissions": {
+    "contents": "read",
+    "issues": "read",
+    "pull_requests": "write",
+    "metadata": "read"
+  },
+  "notes": "Sign all comments and PR bodies with the loop identity. Never auto-merge. Use draft PRs where possible. Pair with worktree evidence."
+}

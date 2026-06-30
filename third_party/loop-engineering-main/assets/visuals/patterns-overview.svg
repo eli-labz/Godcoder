@@ -1,0 +1,94 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 420" role="img" aria-label="Seven production loop patterns">
+  <defs>
+    <linearGradient id="pbg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0d1420"/>
+      <stop offset="100%" stop-color="#070b12"/>
+    </linearGradient>
+    <style>
+      .title { font: 700 22px system-ui, -apple-system, sans-serif; fill: #e8edf5; }
+      .subtitle { font: 500 13px system-ui, -apple-system, sans-serif; fill: #8b9cb3; }
+      .card-title { font: 600 12px system-ui, -apple-system, sans-serif; fill: #e8edf5; }
+      .card-meta { font: 500 10px system-ui, -apple-system, sans-serif; fill: #8b9cb3; }
+      .badge { font: 700 9px system-ui, -apple-system, sans-serif; fill: #070b12; }
+      .icon { font-size: 22px; }
+    </style>
+  </defs>
+
+  <rect width="960" height="420" rx="18" fill="url(#pbg)"/>
+  <rect x="1" y="1" width="958" height="418" rx="17" fill="none" stroke="rgba(62,232,197,0.15)" stroke-width="1"/>
+
+  <text x="32" y="42" class="title">7 Production Patterns</text>
+  <text x="32" y="62" class="subtitle">Pick a cadence, clone a starter, start at L1 report-only</text>
+
+  <!-- row 1 -->
+  <g transform="translate(24,84)">
+    <rect width="210" height="128" rx="14" fill="#111a28" stroke="rgba(62,232,197,0.25)" stroke-width="1"/>
+    <text x="20" y="36" class="icon">📅</text>
+    <text x="52" y="34" class="card-title">Daily Triage</text>
+    <text x="52" y="50" class="card-meta">1d–2h · L1 report</text>
+    <rect x="20" y="92" width="52" height="20" rx="10" fill="#3ee8c5"/>
+    <text x="46" y="106" text-anchor="middle" class="badge">LOW</text>
+  </g>
+
+  <g transform="translate(252,84)">
+    <rect width="210" height="128" rx="14" fill="#111a28" stroke="rgba(62,232,197,0.25)" stroke-width="1"/>
+    <text x="20" y="36" class="icon">👶</text>
+    <text x="52" y="34" class="card-title">PR Babysitter</text>
+    <text x="52" y="50" class="card-meta">5–15m · L1 watch</text>
+    <rect x="20" y="92" width="58" height="20" rx="10" fill="#ffb347"/>
+    <text x="49" y="106" text-anchor="middle" class="badge">HIGH</text>
+  </g>
+
+  <g transform="translate(480,84)">
+    <rect width="210" height="128" rx="14" fill="#111a28" stroke="rgba(62,232,197,0.25)" stroke-width="1"/>
+    <text x="20" y="36" class="icon">🧹</text>
+    <text x="52" y="34" class="card-title">CI Sweeper</text>
+    <text x="52" y="50" class="card-meta">5–15m · L2 cautious</text>
+    <rect x="20" y="92" width="72" height="20" rx="10" fill="#ff6b6b"/>
+    <text x="56" y="106" text-anchor="middle" class="badge">V.HIGH</text>
+  </g>
+
+  <g transform="translate(708,84)">
+    <rect width="228" height="128" rx="14" fill="#111a28" stroke="rgba(62,232,197,0.25)" stroke-width="1"/>
+    <text x="20" y="36" class="icon">📦</text>
+    <text x="52" y="34" class="card-title">Dependency Sweeper</text>
+    <text x="52" y="50" class="card-meta">6h–1d · L2 patch-only</text>
+    <rect x="20" y="92" width="68" height="20" rx="10" fill="#5b9dff"/>
+    <text x="54" y="106" text-anchor="middle" class="badge">MEDIUM</text>
+  </g>
+
+  <!-- row 2 -->
+  <g transform="translate(24,232)">
+    <rect width="210" height="128" rx="14" fill="#111a28" stroke="rgba(91,157,255,0.22)" stroke-width="1"/>
+    <text x="20" y="36" class="icon">📝</text>
+    <text x="52" y="34" class="card-title">Changelog Drafter</text>
+    <text x="52" y="50" class="card-meta">1d or tag · L1 draft</text>
+    <rect x="20" y="92" width="52" height="20" rx="10" fill="#3ee8c5"/>
+    <text x="46" y="106" text-anchor="middle" class="badge">LOW</text>
+  </g>
+
+  <g transform="translate(252,232)">
+    <rect width="210" height="128" rx="14" fill="#111a28" stroke="rgba(91,157,255,0.22)" stroke-width="1"/>
+    <text x="20" y="36" class="icon">🧼</text>
+    <text x="52" y="34" class="card-title">Post-Merge Cleanup</text>
+    <text x="52" y="50" class="card-meta">1d–6h · L1 off-peak</text>
+    <rect x="20" y="92" width="52" height="20" rx="10" fill="#3ee8c5"/>
+    <text x="46" y="106" text-anchor="middle" class="badge">LOW</text>
+  </g>
+
+  <g transform="translate(480,232)">
+    <rect width="210" height="128" rx="14" fill="#111a28" stroke="rgba(91,157,255,0.22)" stroke-width="1"/>
+    <text x="20" y="36" class="icon">🏷️</text>
+    <text x="52" y="34" class="card-title">Issue Triage</text>
+    <text x="52" y="50" class="card-meta">2h–1d · L1 propose</text>
+    <rect x="20" y="92" width="52" height="20" rx="10" fill="#3ee8c5"/>
+    <text x="46" y="106" text-anchor="middle" class="badge">LOW</text>
+  </g>
+
+  <g transform="translate(708,232)">
+    <rect width="228" height="128" rx="14" fill="rgba(62,232,197,0.08)" stroke="#3ee8c5" stroke-width="1.5" stroke-dasharray="6 4"/>
+    <text x="114" y="58" text-anchor="middle" class="card-title">Not sure?</text>
+    <text x="114" y="78" text-anchor="middle" class="card-meta">Try the interactive picker →</text>
+    <text x="114" y="108" text-anchor="middle" class="icon">✨</text>
+  </g>
+</svg>

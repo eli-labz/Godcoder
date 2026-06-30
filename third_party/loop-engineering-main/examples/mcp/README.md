@@ -1,0 +1,44 @@
+# MCP / Connectors Cookbook
+
+Practical, scoped examples for connecting loops to real tools via MCP (or equivalent plugins/connectors).
+
+**Core principle**: Give loops the *minimum* privilege they need. Prefer read + comment over write. Use human gates + worktrees for anything that mutates state.
+
+## Quick Patterns
+
+| Connector | Typical Use | Recommended Scope | Pattern Fit |
+|-----------|-------------|-------------------|-------------|
+| GitHub (read + propose) | Discover PRs/issues, post comments, open draft PRs | `contents: read`, `pull_requests: write` (with bot identity) | PR Babysitter, Daily Triage, Changelog Drafter |
+| Linear | Read/update issues from state, create follow-up tickets | API key with project + issue write limited to specific teams | Post-Merge, Dependency Sweeper, CI Sweeper |
+| Slack (read) | Ingest threads / alerts the loop should triage | Read-only on specific channels | Daily Triage |
+| Safe propose flow | Any write action | Loop opens PR / draft / comment. Human merges or approves. | All L2+ patterns |
+
+## Example Configurations
+
+See the files in this directory:
+
+- `github-readonly.mcp.json` (existing) — safe starting point for discovery.
+- `github-propose.json` — read + limited write for comments and draft PRs (sign comments as the loop).
+- `linear.json` — example for creating/updating issues from loop state.
+- `slack-read.json` — ingest channel threads into triage.
+- `safe-write-pattern.md` — the recommended architecture for any mutating action.
+
+## Usage in a Loop Prompt (Grok example)
+
+```
+/loop 1d Use the github-propose MCP. Scan open PRs with pr-review-triage. For actionable low-risk items on allowlisted paths: open worktree, minimal-fix, verifier. Then post a signed comment on the PR with a link to the worktree diff. Never merge.
+```
+
+Always:
+- Declare the bot identity in comments ("🤖 Loop Engineering — Changelog Drafter").
+- Record the MCP action + result in STATE or the pattern-specific state file.
+- Have an explicit denylist in the skill or LOOP.md.
+
+## Safety Notes
+
+- Never give a loop the ability to push tags or create releases without an explicit human gate (even for changelog).
+- For Linear / ticketing: the loop can *propose* or *update* status; a human (or a very trusted allowlist) does final close on high-severity items.
+- Test new connectors in report-only (L1) mode first.
+- Log every MCP call the loop makes (the `monitor` tool or GitHub Action logs are your friend).
+
+See also: [docs/safety.md](../../docs/safety.md), [docs/operating-loops.md](../../docs/operating-loops.md), and the individual pattern docs for human gate recommendations.

@@ -1,0 +1,56 @@
+{
+  "name": "@cobusgreyling/loop-cost",
+  "version": "1.0.3",
+  "description": "Estimate token budgets and daily costs for loop engineering patterns. By cadence, readiness level (L1/L2/L3), and coding agent tool.",
+  "type": "module",
+  "bin": {
+    "loop-cost": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "registry.json",
+    "README.md"
+  ],
+  "scripts": {
+    "bundle": "node scripts/bundle-registry.mjs",
+    "build": "npm run bundle && tsc && chmod +x dist/cli.js",
+    "test": "npm run build && node --test test/estimator.test.mjs",
+    "prepublishOnly": "npm test",
+    "start": "node dist/cli.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "loop-engineering",
+    "ai-agents",
+    "coding-agents",
+    "token-budget",
+    "cost-estimate",
+    "claude-code",
+    "grok",
+    "budget",
+    "devtools"
+  ],
+  "author": "Cobus Greyling",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cobusgreyling/loop-engineering.git",
+    "directory": "tools/loop-cost"
+  },
+  "homepage": "https://cobusgreyling.github.io/loop-engineering/",
+  "bugs": {
+    "url": "https://github.com/cobusgreyling/loop-engineering/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "yaml": "^2.8.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  }
+}

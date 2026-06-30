@@ -1,0 +1,8 @@
+# Default owner for review routing (solo maintainer today).
+* @cobusgreyling
+
+/patterns/ @cobusgreyling
+/tools/ @cobusgreyling
+/.github/ @cobusgreyling
+/docs/ @cobusgreyling
+/starters/ @cobusgreyling

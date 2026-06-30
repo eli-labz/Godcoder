@@ -1,0 +1,39 @@
+name: Changelog Drafter (example)
+
+on:
+  schedule:
+    - cron: '30 18 * * *'   # daily evening
+  workflow_dispatch:
+  # push:
+  #   tags: [ 'v*' ]       # also trigger on release tags
+
+jobs:
+  draft:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup (example — adapt to your runtime)
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      # In a real Grok / Claude / Codex automation this would call the loop.
+      # Here we document the intent so a human or scheduled TUI job can pick it up,
+      # or you wire it to your agent platform's GitHub Action integration.
+
+      - name: Placeholder — run the drafter
+        run: |
+          echo "Run your agent with the changelog-drafter prompt here."
+          echo "Produce RELEASE_NOTES_DRAFT.md and update changelog-drafter-state.md."
+          echo "This workflow is an example trigger + comment surface."
+
+      - name: Comment draft location on a tracking issue (optional)
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/github-script@v9
+        with:
+          script: |
+            // Post a comment or create/update a release-prep issue with link to the draft.
+            console.log('In production: comment with link to RELEASE_NOTES_DRAFT.md and the loop run id.');

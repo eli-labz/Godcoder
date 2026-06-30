@@ -1,0 +1,41 @@
+name: Publish goal-audit (bootstrap)
+
+# One-time bootstrap: publishes @cobusgreyling/goal-audit from goal-engineering
+# using this repo's NPM_TOKEN. After first publish, use goal-engineering's
+# release-goal-audit.yml tag workflow (copy NPM_TOKEN to that repo).
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          repository: cobusgreyling/goal-engineering
+          ref: main
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'npm'
+          cache-dependency-path: tools/goal-audit/package-lock.json
+
+      - name: Install, build, test
+        working-directory: tools/goal-audit
+        run: |
+          npm ci
+          npm run build
+          npm test
+
+      - name: Publish to npm
+        working-directory: tools/goal-audit
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

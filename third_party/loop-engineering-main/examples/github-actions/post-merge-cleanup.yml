@@ -1,0 +1,35 @@
+# Post-Merge Cleanup — trigger on push to main
+
+name: Post-Merge Cleanup Loop
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '0 22 * * *'  # nightly aggregate sweep
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  cleanup-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 50
+
+      - name: List recent merges
+        run: |
+          git log --merges -10 --oneline || git log -10 --oneline
+
+      - name: Scan for cleanup signals
+        run: |
+          echo "Scanning for TODO/remove after/deprecated in recent diff..."
+          git diff HEAD~5..HEAD 2>/dev/null | grep -E 'TODO|FIXME|remove after|deprecated' || true
+
+      - name: Update post-merge-state.md
+        run: |
+          echo "Append findings to post-merge-state.md — wire agent for auto-fix of small items."
+          echo "See patterns/post-merge-cleanup.md"

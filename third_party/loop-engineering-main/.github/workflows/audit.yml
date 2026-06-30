@@ -1,0 +1,60 @@
+name: Loop Readiness Audit (dogfood)
+
+permissions:
+  contents: read
+  pull-requests: write
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '17 9 * * *'
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: tools/loop-audit/package-lock.json
+
+      - name: Build, test & run loop-audit on the reference + starters
+        run: bash scripts/ci-audit-gates.sh
+
+      - name: Comment PR with loop readiness score
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const fs = require('fs');
+            let data;
+            try {
+              data = JSON.parse(fs.readFileSync('/tmp/audit.json', 'utf8'));
+            } catch (e) {
+              core.setFailed('Could not read audit JSON for PR comment');
+              return;
+            }
+            const recs = (data.recommendations || []).slice(0, 5);
+            const body = [
+              '## Loop Readiness Audit',
+              '',
+              `**Score:** ${data.score}/100 (**${data.level}**)`,
+              '',
+              data.assessment,
+              '',
+              recs.length ? '### Top suggestions\n' + recs.map(r => `- ${r}`).join('\n') : '_No suggestions — looking good._',
+              '',
+              '<sub>Posted by `audit.yml` · [loop-audit docs](https://github.com/cobusgreyling/loop-engineering/tree/main/tools/loop-audit)</sub>',
+            ].join('\n');
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body,
+            });

@@ -1,0 +1,53 @@
+# Issue Triage — GitHub Actions (tool-agnostic trigger)
+# Scans open issues on a cadence and on new issues. L1 propose-only — updates
+# issue-triage-state.md. Wire the "Run triage agent" step to your harness.
+
+name: Issue Triage Loop
+
+on:
+  schedule:
+    - cron: '0 */2 * * 1-5'  # Every 2h weekdays (UTC)
+  issues:
+    types: [opened, reopened, labeled]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Gather issue context
+        id: issues
+        run: |
+          echo "Open issues (last 20):"
+          gh issue list --state open --limit 20 --json number,title,labels,createdAt,updatedAt 2>/dev/null || true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Ensure issue-triage-state.md exists
+        run: |
+          if [ ! -f issue-triage-state.md ]; then
+            cp starters/issue-triage/issue-triage-state.md.example issue-triage-state.md 2>/dev/null || \
+            echo "# Issue Triage State\n\nLast run: never\nOpen actionable: 0\n\n## Top 5\n\n## Proposed Labels (L1 — not applied)\n" > issue-triage-state.md
+          fi
+
+      # Replace with your agent invocation (Codex CLI, repository_dispatch, Grok/Claude runner)
+      - name: Run issue-triage agent
+        run: |
+          echo "::notice::Wire this step to your agent harness."
+          echo "Prompt: Run issue-triage skill. Update issue-triage-state.md."
+          echo "Week 1: propose labels and priority only — no auto-apply or close."
+          echo "See examples/github-actions/README.md and examples/grok/issue-triage.md"
+
+      - name: Upload state artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-triage-state
+          path: issue-triage-state.md
+          if-no-files-found: ignore

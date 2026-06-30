@@ -1,0 +1,72 @@
+name: Add my project to Adopters
+description: List your loop setup on the showcase and docs/adopters.md
+title: "Adopter: "
+labels:
+  - docs
+body:
+  - type: markdown
+    value: |
+      Share how you run loops from this repo (or an adaptation). We'll add your project to [docs/adopters.md](https://github.com/cobusgreyling/loop-engineering/blob/main/docs/adopters.md) and the [showcase adopters wall](https://cobusgreyling.github.io/loop-engineering/#adopters).
+
+      **Optional:** paste your Loop Ready badge from `npx @cobusgreyling/loop-audit . --badge`.
+
+  - type: input
+    id: project
+    attributes:
+      label: Project
+      description: Repo URL or product name
+      placeholder: https://github.com/you/your-repo
+    validations:
+      required: true
+
+  - type: input
+    id: patterns
+    attributes:
+      label: Pattern(s)
+      description: e.g. Daily Triage + Issue Triage
+      placeholder: daily-triage, issue-triage
+    validations:
+      required: true
+
+  - type: dropdown
+    id: tool
+    attributes:
+      label: Primary tool
+      options:
+        - Grok
+        - Claude Code
+        - Codex
+        - Cursor
+        - Windsurf
+        - GitHub Actions
+        - Mixed
+    validations:
+      required: true
+
+  - type: dropdown
+    id: level
+    attributes:
+      label: Readiness level (honest)
+      options:
+        - L1
+        - L2
+        - L3
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: One-line notes
+      description: What worked or what broke — failures welcome
+      placeholder: L1 daily triage for 2 weeks; killed CI sweeper after token spike
+    validations:
+      required: true
+
+  - type: textarea
+    id: badge
+    attributes:
+      label: Loop Ready badge (optional)
+      description: Output of `npx @cobusgreyling/loop-audit . --badge`
+      render: text
+      placeholder: "[![Loop Ready L2 (58/100)](...)](...)"
