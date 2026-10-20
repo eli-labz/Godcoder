@@ -208,6 +208,19 @@ impl ProviderConfig {
     fn is_builtin(&self) -> bool {
         self.builtin || self.kind == "openai" || self.kind == "anthropic"
     }
+
+    /// Curated choices are separate from saved model IDs, which remain valid
+    /// for existing sessions and explicit selections.
+    fn model_choices(&self) -> Vec<String> {
+        if self.kind == "minimax" && matches!(self.id.as_str(),
+            "minimax-global-chat" | "minimax-global-messages" |
+            "minimax-cn-chat" | "minimax-cn-messages")
+        {
+            vec!["MiniMax-M3.1-Flash".to_string(), "MiniMax-M3".to_string()]
+        } else {
+            self.models.clone()
+        }
+    }
 }
 
 /// A reference to a specific model on a specific provider. Used for the global
@@ -238,6 +251,15 @@ const SELECTION_KEY: &str = "llm_selection";
 fn minimax_model_meta() -> std::collections::HashMap<String, ModelMeta> {
     let mut meta = std::collections::HashMap::new();
     meta.insert(
+        "MiniMax-M3.1-Flash".to_string(),
+        ModelMeta {
+            context_length: Some(1_000_000),
+            supports_images: true,
+            supports_videos: true,
+            thinking: vec!["adaptive".to_string()],
+        },
+    );
+    meta.insert(
         "MiniMax-M3".to_string(),
         ModelMeta {
             context_length: Some(1_000_000),
@@ -267,7 +289,7 @@ fn minimax_provider(id: &str, label: &str, base_url: &str, wire_format: &str) ->
         label: label.to_string(),
         base_url: base_url.to_string(),
         api_key: String::new(),
-        models: vec!["MiniMax-M3".to_string(), "MiniMax-M2.7".to_string()],
+        models: vec!["MiniMax-M3.1-Flash".to_string(), "MiniMax-M3".to_string()],
         model_meta: minimax_model_meta(),
         supports_images: false,
         supports_videos: false,
@@ -462,7 +484,11 @@ mod provider_preset_tests {
             assert_eq!(preset.base_url, base_url);
             assert_eq!(preset.wire_format.as_deref(), Some(wire_format));
             assert_eq!(preset.provider(), provider);
-            assert_eq!(preset.models, ["MiniMax-M3", "MiniMax-M2.7"]);
+            assert_eq!(preset.models, ["MiniMax-M3.1-Flash", "MiniMax-M3"]);
+            let flash = &preset.model_meta["MiniMax-M3.1-Flash"];
+            assert_eq!(flash.context_length, Some(1_000_000));
+            assert!(flash.supports_images && flash.supports_videos);
+            assert_eq!(flash.thinking, ["adaptive"]);
         }
     }
 
@@ -487,6 +513,126 @@ mod provider_preset_tests {
 
         let config = provider_to_llm_config(&provider, "MiniMax-M3");
         assert_eq!(config.thinking, Some(serde_json::json!({ "type": "adaptive" })));
+    }
+
+    fn test_app_state() -> AppState {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        conn.execute_batch("CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TEXT);").unwrap();
+        AppState {
+            db: std::sync::Arc::new(crate::Database { conn: parking_lot::Mutex::new(conn) }),
+        }
+    }
+
+    #[test]
+    fn minimax_choices_preserve_saved_selections_and_custom_providers() {
+        let state = test_app_state();
+        let mut saved = default_providers();
+        let preset = saved.iter_mut().find(|p| p.id == "minimax-global-chat").unwrap();
+        preset.models = vec!["MiniMax-M2.7".into(), "custom-model".into()];
+        preset.base_url = "https://custom.example/v1".into();
+        write_providers(&state, &saved).unwrap();
+        let selection = ModelSelection {
+            active: Some(ModelRef { provider_id: preset_id(), model: "MiniMax-M2.7".into() }),
+            compaction: Some(ModelRef { provider_id: preset_id(), model: "custom-model".into() }),
+            title: None,
+        };
+        write_selection(&state, &selection).unwrap();
+        let loaded = provider_by_id(&state, &preset_id()).unwrap();
+        assert_eq!(loaded.models, ["MiniMax-M2.7", "custom-model"]);
+        assert_eq!(loaded.base_url, "https://custom.example/v1");
+        assert_eq!(loaded.model_choices(), ["MiniMax-M3.1-Flash", "MiniMax-M3"]);
+        assert_eq!(default_session_model(&state).unwrap().model, "MiniMax-M2.7");
+        assert_eq!(resolve_ref(&state, selection.compaction.as_ref().unwrap()).unwrap().1, "custom-model");
+        assert_eq!(provider_to_llm_config(&loaded, "MiniMax-M2.7").model, "MiniMax-M2.7");
+        let mut custom = loaded.clone();
+        custom.id = "my-custom-provider".into();
+        custom.builtin = false;
+        assert_eq!(custom.model_choices(), custom.models);
+        assert_eq!(merge_builtin(&custom, custom.clone()), custom);
+        // The existing non-MiniMax default is not replaced by the rollout.
+        write_selection(&state, &ModelSelection::default()).unwrap();
+        assert_eq!(default_session_model(&state).unwrap().provider_id, "qwen-local");
+    }
+
+    fn preset_id() -> String {
+        "minimax-global-chat".into()
+    }
+
+    #[tokio::test]
+    async fn minimax_presets_send_current_and_saved_models_over_real_transport() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        for mut preset in default_providers().into_iter().filter(|p| p.kind == "minimax") {
+            let server = MockServer::start().await;
+            let messages_protocol = preset.provider() == Provider::Anthropic;
+            let endpoint = if messages_protocol { "/anthropic/v1/messages" } else { "/v1/chat/completions" };
+            let stream = if messages_protocol {
+                "event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n"
+            } else {
+                "data: [DONE]\n\n"
+            };
+            Mock::given(method("POST")).and(path(endpoint))
+                .respond_with(ResponseTemplate::new(200).set_body_string(stream)
+                    .insert_header("content-type", "text/event-stream"))
+                .expect(4).mount(&server).await;
+            // Only the host is replaced; each preset's production path survives.
+            let suffix = if messages_protocol { "/anthropic" } else { "/v1" };
+            preset.base_url = format!("{}{suffix}", server.uri());
+            preset.api_key = "fixture-key".into();
+            let state = test_app_state();
+            write_providers(&state, &[preset.clone()]).unwrap();
+            // Selecting MiniMax starts from its first ordinary choice; the
+            // application's unrelated global fallback remains unchanged.
+            write_selection(&state, &ModelSelection {
+                active: Some(ModelRef {
+                    provider_id: preset.id.clone(),
+                    model: preset.model_choices()[0].clone(),
+                }),
+                ..ModelSelection::default()
+            }).unwrap();
+            let default_model = default_session_model(&state).unwrap();
+            assert_eq!(default_model.model, "MiniMax-M3.1-Flash");
+            for model in [default_model.model.as_str(), "MiniMax-M3", "MiniMax-M2.7", "custom-model"] {
+                let reference = ModelRef { provider_id: preset.id.clone(), model: model.into() };
+                let (resolved, model) = resolve_ref(&state, &reference).unwrap();
+                let config = provider_to_llm_config(&resolved, &model);
+                let (tx, _rx) = tokio::sync::mpsc::channel(8);
+                let message = build_user_message("inspect", Some(vec![
+                    AttachmentPayload { url: "data:image/png;base64,QUJD".into(), file_name: "image.png".into(), media_type: "image/png".into() },
+                    AttachmentPayload { url: "data:video/mp4;base64,QUJD".into(), file_name: "clip.mp4".into(), media_type: "video/mp4".into() },
+                ])).await;
+                LlmClient::new(config).chat_completion(&[message], &[], &tx, "fixture", None).await.unwrap();
+            }
+            let requests = server.received_requests().await.unwrap();
+            for (request, model) in requests.iter().zip(["MiniMax-M3.1-Flash", "MiniMax-M3", "MiniMax-M2.7", "custom-model"]) {
+                let body: serde_json::Value = serde_json::from_slice(&request.body).unwrap();
+                assert_eq!(body["model"], model);
+                if matches!(model, "MiniMax-M3.1-Flash" | "MiniMax-M3") {
+                    assert_eq!(body["thinking"], serde_json::json!({"type": "adaptive"}));
+                } else {
+                    assert!(body.get("thinking").is_none());
+                }
+                // No effort override: Flash uses the documented API default (max).
+                for field in ["reasoning_effort", "output_config", "service_tier", "reasoning_split"] {
+                    assert!(body.get(field).is_none(), "unexpected {field}");
+                }
+                let content = body["messages"][0]["content"].as_array().unwrap();
+                assert_eq!(content[0]["text"], "inspect");
+                if messages_protocol {
+                    assert_eq!(request.headers["x-api-key"], "fixture-key");
+                    assert_eq!(body["max_tokens"], 8192);
+                    assert_eq!(content[1]["type"], "image");
+                    assert_eq!(content[1]["source"]["data"], "QUJD");
+                    assert_eq!(content[2]["type"], "video");
+                    assert_eq!(content[2]["source"]["media_type"], "video/mp4");
+                } else {
+                    assert_eq!(request.headers["authorization"], "Bearer fixture-key");
+                    assert_eq!(content[1]["image_url"]["url"], "data:image/png;base64,QUJD");
+                    assert_eq!(content[2]["video_url"]["url"], "data:video/mp4;base64,QUJD");
+                }
+            }
+        }
     }
 
     #[tokio::test]
@@ -954,8 +1100,10 @@ fn default_session_model(app_state: &AppState) -> Option<ModelRef> {
     }
     read_providers(app_state)
         .into_iter()
-        .find(|p| !p.models.is_empty())
-        .map(|p| ModelRef { provider_id: p.id, model: p.models[0].clone() })
+        .find_map(|p| p.model_choices().first().map(|model| ModelRef {
+            provider_id: p.id.clone(),
+            model: model.clone(),
+        }))
 }
 
 /// Resolve the (provider, model) a session runs with: what it was created with
@@ -2527,7 +2675,10 @@ pub struct ProvidersResponse {
 #[tauri::command]
 pub async fn agent_list_providers(app_state: State<'_, AppState>) -> Result<ProvidersResponse, String> {
     Ok(ProvidersResponse {
-        providers: read_providers(&app_state),
+        providers: read_providers(&app_state).into_iter().map(|mut provider| {
+            provider.models = provider.model_choices();
+            provider
+        }).collect(),
         selection: read_selection(&app_state),
     })
 }

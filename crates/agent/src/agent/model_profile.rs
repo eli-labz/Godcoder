@@ -69,7 +69,11 @@ impl ModelRegistry {
 
     /// List all profiles in declaration/insertion order (newest-first for the picker).
     pub fn list(&self) -> Vec<&ModelProfile> {
-        self.order.iter().filter_map(|id| self.profiles.get(id)).collect()
+        self.order.iter().filter_map(|id| self.profiles.get(id))
+            // Keep legacy metadata available to saved sessions via get(), while
+            // exposing only current MiniMax models in the ordinary picker.
+            .filter(|p| p.id != "MiniMax-M2.7")
+            .collect()
     }
 }
 
@@ -120,6 +124,15 @@ fn default_profiles() -> Vec<ModelProfile> {
         profile("claude-sonnet-4-6", "Claude Sonnet 4.6", "anthropic", 1_000_000, true),
         profile("claude-haiku-4-5", "Claude Haiku 4.5", "anthropic", 200_000, true),
         // ── MiniMax ────────────────────────────────────────────────────────
+        profile_with_capabilities(
+            "MiniMax-M3.1-Flash",
+            "MiniMax-M3.1-Flash",
+            "minimax",
+            1_000_000,
+            true,
+            true,
+            &["adaptive"],
+        ),
         profile_with_capabilities(
             "MiniMax-M3",
             "MiniMax-M3",
@@ -301,6 +314,15 @@ mod tests {
     #[test]
     fn test_minimax_profiles_include_input_and_thinking_capabilities() {
         let reg = ModelRegistry::with_defaults();
+        let flash = reg.get("MiniMax-M3.1-Flash").unwrap();
+        assert_eq!(flash.context_window, 1_000_000);
+        assert!(flash.supports_images);
+        assert!(flash.supports_videos);
+        assert_eq!(flash.thinking, ["adaptive"]);
+        let choices: Vec<_> = reg.list().into_iter().filter(|p| p.provider == "minimax")
+            .map(|p| p.id.as_str()).collect();
+        assert_eq!(choices, ["MiniMax-M3.1-Flash", "MiniMax-M3"]);
+
         let m3 = reg.get("MiniMax-M3").unwrap();
         assert_eq!(m3.context_window, 1_000_000);
         assert!(m3.supports_images);
